@@ -5,42 +5,53 @@
 
 ## Advanced Oil Price Forecasting System
 
-Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques (CEEMDAN) with deep learning (LSTM with attention mechanism) and alternative data sources (Reddit sentiment) to predict oil price movements with higher accuracy than traditional methods.
+Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques with deep learning (LSTM with attention mechanism) and alternative data sources to predict oil price movements with higher accuracy than traditional methods.
 
-> ⚠️ **This project is currently under development**. Many features are not yet implemented, and the code is subject to significant changes.
+> 🚀 **Development Progress**: Core components including data processing, signal decomposition, and forecasting models have been implemented. The system now supports visualization and evaluation of model performance.
 
-## Features (Planned)
+## Features
 
-- **Hybrid CEEMDAN-LSTM Architecture**: Leverages Complete Ensemble Empirical Mode Decomposition with Adaptive Noise for signal decomposition and Long Short-Term Memory networks with attention mechanisms for accurate predictions
-- **Multi-timeframe Analysis**: Support for daily, weekly, monthly, and yearly price data for both WTI and Brent crude oil
-- **Market Sentiment Integration**: Analyzes sentiment from Reddit financial communities to incorporate market psychology into price forecasts
-- **Ensemble Approach**: Combines technical forecasts with sentiment signals for more robust predictions
-- **Interactive Visualizations**: Clear visualization of forecasts, model performance, and sentiment indicators
+### Implemented
+- **Data Processing Pipeline**: Robust data loading and preprocessing for multi-timeframe analysis
+- **Signal Decomposition**: Time series decomposition into trend, cyclical, and residual components using advanced filtering techniques
+- **LSTM with Attention Model**: Deep learning forecasting with attention mechanisms to focus on relevant parts of the input sequence
+- **Baseline Models**: Simple forecasting models for performance benchmarking
+- **Ensemble Approach**: Combines predictions from multiple models for more robust forecasts
+- **Visualization System**: Comprehensive visualization tools for time series data, decomposition, forecasts, and model comparison
+- **Evaluation Framework**: Rigorous model evaluation with multiple metrics and statistical significance testing
+
+### Planned
+- **Market Sentiment Integration**: Analyzing sentiment from Reddit financial communities to incorporate market psychology
+- **Interactive Dashboard**: Web-based interface for exploring forecasts and model performance
+- **API Development**: Exposing model predictions through a REST API
 
 ## Project Structure
 
 ```
 oil-prophet/
 ├── data/
-│   ├── raw/
-│   └── processed/
-├── models/
+│   ├── raw/                 # Raw oil price data files
+│   └── processed/           # Processed datasets
+├── models/                  # Saved model files and evaluation results
 ├── notebooks/
+│   └── plots/               # Generated visualization plots
 ├── src/
 │   ├── data/
-│   ├── features/
+│   │   └── preprocessing.py # Data loading and preprocessing
 │   ├── models/
-│   │   ├── ceemdan.py
-│   │   ├── lstm_attention.py
-│   │   ├── ensemble.py
-│   │   └── baseline.py
-│   ├── nlp/
+│   │   ├── ceemdan.py       # Signal decomposition implementation
+│   │   ├── lstm_attention.py # LSTM with attention implementation
+│   │   ├── ensemble.py      # Ensemble forecasting models
+│   │   └── baseline.py      # Baseline forecasting models
 │   ├── evaluation/
+│   │   └── metrics.py       # Evaluation metrics and testing
 │   ├── visualization/
-│   └── api/
+│   │   └── plots.py         # Visualization functions
+│   ├── nlp/                 # (Planned) Sentiment analysis
+│   └── api/                 # (Planned) API implementation
 ├── tests/
 ├── requirements.txt
-├── setup.py
+├── setup_checker.py         # System setup verification
 ├── .gitignore
 ├── README.md
 └── LICENSE
@@ -50,36 +61,71 @@ oil-prophet/
 
 - [x] Project structure setup
 - [x] Data collection (historical oil prices)
-- [ ] Data preprocessing pipeline
-- [ ] CEEMDAN implementation
-- [ ] LSTM with attention implementation
+- [x] Data preprocessing pipeline
+- [x] Signal decomposition implementation
+- [x] LSTM with attention implementation
+- [x] Baseline models implementation
+- [x] Ensemble model development
+- [x] Visualization system
+- [x] Model evaluation framework
 - [ ] Reddit sentiment analysis integration
-- [ ] Ensemble model development
-- [ ] Model evaluation framework
 - [ ] Interactive visualization dashboard
 - [ ] API development
 
 ## Getting Started
 
-As this project is still in early development, full installation and usage instructions will be provided once a working prototype is available.
-
-### Prerequisites (Planned)
-
+### Prerequisites
 - Python 3.8+
-- TensorFlow 2.x
-- PyEMD
-- PRAW (Python Reddit API Wrapper)
-- Pandas, NumPy, Matplotlib
-- Scikit-learn
+- Dependencies listed in requirements.txt
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/oil-prophet.git
+   cd oil-prophet
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Verify setup:
+   ```bash
+   python setup_checker.py
+   ```
+
+### Usage Examples
+
+1. Data preprocessing:
+   ```bash
+   python -m src.data.preprocessing
+   ```
+
+2. Run signal decomposition:
+   ```bash
+   python -m src.models.ceemdan
+   ```
+
+3. Generate visualizations:
+   ```bash
+   python -m src.visualization.plots
+   ```
+
+4. Evaluate model performance:
+   ```bash
+   python -m src.evaluation.metrics
+   ```
 
 ## Applications
 
-When completed, this forecasting system will be valuable for:
+This forecasting system is valuable for:
 
 - **Investment Decisions**: Helping investors make informed decisions for commodities trading
 - **Risk Management**: Assisting companies in hedging strategies based on expected price movements
 - **Budget Planning**: Supporting businesses in financial planning that depends on oil price forecasts
-- **Market Research**: Providing insights into the relationship between social sentiment and oil prices
+- **Market Research**: Providing insights into the relationship between market factors and oil prices
 
 ## License
 
