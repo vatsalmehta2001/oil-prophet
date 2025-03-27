@@ -1,13 +1,11 @@
 ./
     setup_checker.py
     generate_test_data.py
-    .DS_Store
     reddit_scraper.log
     dir.py
     LICENSE
     requirements.txt
     test_pyemd.py
-    test_reddit_scraper.py
     reddit_config.json
     news_api_config.json
     README.md
@@ -18,7 +16,6 @@
     cache/
     tests/
     models/
-        .DS_Store
         evaluation/
             example_evaluation_20250325_222327.json
     setup.py/
@@ -38,13 +35,22 @@
                 2f8fcd90cf3cc9f5f455f4d2d3fdfd3ad648b9
             66/
                 c28cc89bb8135793e7b72bc5441a81077fecc2
+            3e/
+                21c60c8a2895cdfa05e43cb59144a516480daa
+                a4e1d496ac53cf06978515edaa7daad681b8cf
             57/
+                8785194b7caf85c0017400bb62aef2cf13fc36
                 0f1076f49e94578fe43c31a67ca6675bd2013d
             3b/
+                d12bcdd9fb0c8871b78a7d5fcbd8ae82c37641
                 dda31a3a4eb2fb120f8eb4fd5e6eefa783c303
+            9b/
+                e9914030d528c40459f7b6ec4a3d4527e178a0
             9e/
                 dcb88397751f65c4ce15cd0588f6e9b3da731b
                 79ef68cf3b31003b3e972f4fa229326ca70c80
+            04/
+                373cb2467471b38e64110a69078a7ce1c0425a
             32/
                 0a876a139441c380a565fb771ad66da1a8e26c
             35/
@@ -53,21 +59,39 @@
                 783739777971a59a1f7fa7869eb5b32f70fa69
             67/
                 ee168675a46662a211967b7406fd7a8c81e548
+            0e/
+                91a06e3da9619f6d808052bf61a13b4c5b9bcb
             34/
                 0bddae592099930262ce01697578b10584b513
             33/
+                a92e403e0acb2cb300c44e4c65e087cfba026c
                 732f04c4145779f328985959334353fffc7c5c
+            9d/
+                b1a47340045279b04b1bab452e5edf2007be00
             9c/
                 aeb5ce3ac03b3ff9eb2e9d533609405bb98d7d
+                2aab464b87019ad493c2215ef779d494bc913b
             02/
                 cc46b9ae2e2176edf5e42558d8bc9941f7abf5
                 3de3c1ae1fb214048ea59f190cae9fdef0a4c6
             a4/
                 baa72ecfe13a2cdb36ee3b58c999f92e542a43
+            b5/
+                d539fbf0069a8a834a8d375021e1877cd6f3bb
+            d7/
+                786f927d534e096cc9578db874c1ee7edfc04d
+                1405cbc0fa48dd5ca1a8280b35ead51eeee643
             df/
                 f0d73a1c1f258ca6d8ed9959fed20d0e4485f9
+            da/
+                2219f2ee2e3379ccc44fffc71dcd6cab2b09bf
+            b4/
+                bdd180757334c62d15155a928730f25f637431
+                cd9dca1fce296dbf10daad6c10e01387d15b8d
             a2/
                 a1349b275caa68302280542f7e93b79a857573
+            bc/
+                ebdd3a047b3ea249d04228f799220ec0216013
             ab/
                 daaa417881b765b7d32394b1957aff4a53a94f
             f3/
@@ -75,19 +99,37 @@
                 31a258ac5663334e099fd78bbbb4aab31e863d
             eb/
                 75ced5630b236a794cb21d91e73bcd55aba348
+                eea2c4f7e7190f256d66cae54672cd2380a5d6
             c0/
                 764b90e52f56aa0093a7f82b515c8e93878baf
+            ee/
+                696d2d7404d8d94891e250c5b6eb4c2112dbc4
             fc/
                 91faf7033beb80fa00ddaf0f832095ab84d780
                 1f9a5de96c40d993e07fc89d0f3f34a8424b6e
             f2/
                 e50b52c8f9d667f269083140029a8b6f7f96b8
+                b1ca2a64aa04b4b2e3af92fe239978aeaacc44
+                fb05fc46edeed6643a10365986bf6db5d71fb6
                 79b5bf40a46b2fc704e10abd3c6646f8883b7a
+            f5/
+                2db936a5993f5239ebac67628200fc17c09d84
+            e3/
+                535c9266216527b2f4cedae8811780ec585152
+                a117f98733c653252f324d9d8bd9f35b4241d5
+            ca/
+                5d8ba57e2fb36f170e76206c13390faedfb476
+            e4/
+                b2e1e0086851baec0357e7bc614fa90b1cd4a3
+            c1/
+                6cca844d19354346cde38bc1a64c34b69d7b34
             ec/
                 ccb1a1e32a4fb4018868ebbb602b91a293d245
+                f619eb6ec3a80dcbdd9c2d2882f8ec05f125b7
             4e/
                 7f41e27c850c04fc05d5611d57c191e9128504
             20/
+                c49b80596527855112dcab16653f2c5543f3e2
                 5aa8db0fd4562cafff3e4c74065993cbf57f40
             pack/
                 pack-34029ebbfdd7c2a19c82d47301978eaf83d7573e.idx
@@ -98,6 +140,14 @@
                 ae4e8ef1c5736408fb8956854ec7308fbc5aec
             42/
                 2519b05745f0b6dc73e8f4b9983b38357cd7db
+                3e9f187c7966c4e2613de568707af18cc9a37d
+            89/
+                9215a17a2633ea4ec7702c6b7d365a890df286
+            45/
+                b0c796d9f7c4d0b778059299ac17bfb3497e4b
+            73/
+                6e1d9f5895a29bbfc47cdc91e3f25816a75642
+                992da331a6215da6013b3453503839d0b546bb
             80/
                 0967317fa58ed4af9fc1f2cd0e66c51b07ed58
             74/
@@ -109,6 +159,8 @@
             8f/
                 40b14d41a4c84774e8b6fb1af8dec2a6d74071
                 9f00930e8ab831d5d40eaa29934004ee789c10
+            10/
+                b2c6332530636a8983ca052abb4301844a049d
             19/
                 8abc608d1651421554dad7bbcafacaed98e007
             4c/
@@ -117,94 +169,172 @@
                 e870e1cf33c3f89e69244fe301156bf5e359ec
             21/
                 6e5503f842b273a40e65c29d78212543ea57e5
+            75/
+                9958e68331eff62025027b611a8373260bd385
             81/
                 5314954bf49fe77d99a15f7907e4b7a668d100
+            86/
+                5277b35b018c41bf70681b39312c519ec434bc
+            72/
+                ef504f5779426a3a045346c7020fc4df62c8f3
             44/
                 594c2d2b369fbbfdad9c370d5359cdd46df77a
+                448dbdb25a574015baa677e77b5e847df7829d
             43/
                 7daeec1a1f5fac03a923a259d4a11587015773
+            9f/
+                4db1bd47170e585477c8bd0052aac6b6cea062
             6e/
                 88828ce6c2f1b545dc82ddd97a24bb080974c3
                 7185dffedc1848d1b634211c859e33df5ae322
                 a5b6680e1c6673bb183a06506f4ae5d16ef792
             36/
                 a65fbd6cec65ace514597f5a6d2a5c091ab28e
+                9315f37d8901e7c93e0f9e498435f299697956
                 3623fb8841b034704647c6721bdbaaf3235fe2
                 2a5323ff1460e403c663ce1808628f85bee11b
             5c/
                 767b04b4c1f69f975a847f515958fe9f1515bd
             info/
+            65/
+                25ff7331c01b0dd3f2f3454d55204988bdae8c
             96/
                 222740a8b8b5f46bc48236be842833730c5d55
                 5b15cb88c680ce39c55a758d82570c8b3853eb
+                a67a78574326ba9836e4135327ade093552018
             3a/
                 ccee557a2300b8df013fa0820948b010fd37a2
             53/
                 a43873260a9caf7748e7e7fb4d7d8085259c18
             5e/
+                88bd7c2545c3291684c6103ec5e0269de40cc4
                 42877f3ea2d33ffa191cab07546768dd3560d8
             37/
                 2adcc81c51109b6eab6fcc77242e2305121a8c
+                21c3e48030e6989dbd811b13c66b8d88525a6e
             06/
                 cc33015095fe9fb3ea3ef185651d048f73c8b6
             39/
                 3bb3b0585c39c019228508fa46a16ede355a74
+            99/
+                f084c0c68c6526528a9b1ce8f0e418a034a369
+            97/
+                849d9d6edb225ab79b6fbbd5849b3e80be2c46
+            0f/
+                755c2f758908d7102231edaf886692d5a4d9f5
             64/
                 86a13326229cb3577678ca696d973e94e424e5
+                dd1f0896dd6f46c27e044f5c91d1dc3012a4fb
             d4/
                 d078c37a24a12fc323b0a4178ccc6c65e71875
             b8/
                 586c7f86fdd0a662a6374425625fdb860da7c7
             dc/
                 5ef65111b27bb2e03a97fffab46310c017b1c4
+            b6/
+                ce6371106cfe33cbad1592a32ec84fad8a72d8
             a9/
                 4bb0e5d4ee3e1e6c5122245d503fd992a1afb2
                 2c36529239e6be3b602a7c4e67693ebbf1f72d
             d5/
+                0dcff0683be9bffe6549a0795117a4ad33e3cc
                 63b555a4c0ce33f9b2f641b52a15883e79176f
+            af/
+                e0db362e4405b36c7a7749a068639e3bace5e1
+            a8/
+                89afd232ef5569397dc09940b4485bffa9e0bc
+            a6/
+                1aee71a9e3a46a827c8cb6ae073cb320cd76a7
+                2b0eb0a5332ce7b8d5129160fcf61217ab4ee1
             a1/
                 ccebb72b9fd2db105125143e30354e9ab189cd
             ef/
                 104a7ab8ffd8c8c0845218cd349caffc28c86d
             c3/
+                891cb41baf70ba8facf8e78d9f639e9306d92c
                 3f088ea8406a1624e8535e44ae344f4e6cd73c
             e1/
                 9d1d214ae868b7a9d6217bc3af6e3aaa23c74f
+                de0b4453e46aa8971efc03a66021f40f9360a9
             cd/
                 63637865d8aa1e1c02cc32151b03e53edd3caa
                 c75a8c40c90b94f3f320fc4a560ae8bb330366
+                f1db1864e6e370beccabe29d123728ff1829c4
             e6/
                 a5c8cb857b2f7703f4ebb40abe16bf3b5f2830
                 9de29bb2d1d6434b8b29ae775ad8c2e48c5391
             f0/
                 8dd58c43a1f591be3835b1cfa0b04dcdc9d253
+            e8/
+                42ff362fc1c1c12d36ffb54043636c88f6c8ca
             f6/
+                43daa2cfc39d0dfa323eca9bd750c4945347fb
                 ad7e817b23c625da4ce7b1aeea0ff3e0df00dd
+            e9/
+                eac9f047e5ff76782412df228cdf0459fade2d
+            f1/
+                0325a828877c800f9aed030a5093a4aea8e289
             e7/
                 b95811da5e93548d2d308a215ed7d7b312d826
+            cb/
+                178ffa4f06a44f838d79efd627ce9cd5c17fd3
+            f8/
+                6d27bfe6d8886a176484e25ac2040c4a345049
             79/
+                2a26258a93e4533acaf879e0151e4657f20359
                 76a1a0ba1a088de1a9a27a749678dd0710745e
                 ee2c74cefd1279d111f23f740165ef58e26791
+            83/
+                78163b330c2807176c2bd323116cc6d3d897c1
+            1b/
+                0b3e3638740e8f7bfc088d446938c2a80467d9
+            70/
+                7c33fe954a46eec54d70e0454267dd5cb048f3
+            1e/
+                e71159afefaa2780730e6579e90e89f05eaf3d
+                e998b70b4e92ae92019e02f9647a6719c9c4f9
+            84/
+                bb7da95c258cf235f2275f16743d59d973daeb
             23/
                 32919e3ceb63ae0193c50177311ccb0a9cc31e
+            4f/
+                047f3b94db3f1c3f4c630d25f81cda4ddbaaa1
             8d/
                 60e5fcb471b15959bf423b0e84d4c78dd7121b
+                76e2afa5c861c9b286e5d86f4223f8cb82accd
             15/
                 b52e10c802a19f986d0946ea0c3ec17feb0405
                 93e2c857895404b660f7b317f6a59229dbb8a0
+            12/
+                2b19abdcc77d110f2575083cda6792f968f643
             8c/
+                ab5323c13be065cdeedf367d92f01ed777de3c
                 6f6c4a450362ca98f680c230d57909cf1a0825
+            1d/
+                6f81db3ca3f126369b3d8b499cba5029e954b1
+            71/
+                12b0df8adaf0c6c5d8ea69c3e60a74519de404
             1c/
                 d5ad8e19957bcef7efb691dc270334f0dc55aa
+            82/
+                b4d542f45032f5ac572a9a91486565bfdf011e
+                395e8b87d996b8a957324e0cf4d6c14ee19a39
             49/
                 a9c656e9edaf58ec35e9f0758016175e8f183e
+                2e4b7bc0b5f3b7ac0efb5642f005d595e079c5
+            40/
+                59497de1e32838069163cb866738105455aea6
+                5570e06528628e19afe393de7542d754f39b53
+            47/
+                71fa80a44e451bf99e9b34bb97e67d9a355e8f
             8b/
                 ef10585637f518951571fae28febed0122b24e
+            13/
+                e247e9fc010e4bc5f28e6fa2e0edbfb4848782
+            8e/
+                98cf8651d7d3bc074477d16fca0e1f70b26132
             25/
                 42a1813b62cde6da5847f7c7eb3186581a10ec
-        .gitstatus.vLgWGe/
-            a/
-            b/
         info/
             exclude
         logs/
@@ -241,11 +371,26 @@
                     main
         branches/
     data/
-        .DS_Store
         processed/
             .DS_Store
             reddit_test/
             historical/
+                scraping_stats.json
+            reddit_test_viz/
+                comprehensive_sentiment_dataset.csv
+                coverage_visualization.png
+                reddit_posts_stocks.csv
+                reddit_comments_stocks.csv
+                reddit_comments_wallstreetbets.csv
+                scraping_stats.json
+                scraping_state.json
+                reddit_posts_economics.csv
+                reddit_posts_economy.csv
+                reddit_combined_data.csv
+                reddit_comments_economics.csv
+                reddit_comments_economy.csv
+                reddit_posts_wallstreetbets.csv
+                coverage_stats.json
             reddit_test_small/
                 comprehensive_sentiment_dataset.csv
                 reddit_posts_stocks.csv
@@ -278,7 +423,6 @@
             wti-year.csv
             wti-weekly.csv
     notebooks/
-        .DS_Store
         plots/
             price_with_sentiment.png
             brent_daily_timeseries.png

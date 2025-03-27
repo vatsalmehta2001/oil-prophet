@@ -5,9 +5,9 @@
 
 ## Advanced Oil Price Forecasting System
 
-Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques with deep learning (LSTM with attention mechanism) and alternative data sources to predict oil price movements with higher accuracy than traditional methods.
+Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques with deep learning (LSTM with attention mechanism) and market sentiment analysis to predict oil price movements with higher accuracy than traditional methods.
 
-> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and historical data scraping have been implemented and successfully tested. Reddit historical scraping with comments is now fully functional, and sentiment analysis integration is under active development.
+> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and sentiment analysis integration have been implemented. Reddit historical scraping with comments is fully functional, and sentiment-enhanced LSTM model now successfully integrates market sentiment with price patterns. Interactive dashboard is currently under development.
 
 ## Features
 
@@ -15,6 +15,7 @@ Oil Prophet is a sophisticated forecasting system that combines advanced time-se
 - **Data Processing Pipeline**: Robust data loading and preprocessing for multi-timeframe analysis
 - **Signal Decomposition**: Time series decomposition into trend, cyclical, and residual components using advanced filtering techniques
 - **LSTM with Attention Model**: Deep learning forecasting with attention mechanisms to focus on relevant parts of the input sequence
+- **Sentiment-Enhanced LSTM**: Advanced model that combines price patterns with market sentiment indicators for improved forecasting
 - **Baseline Models**: Simple forecasting models for performance benchmarking
 - **Ensemble Approach**: Combines predictions from multiple models for more robust forecasts
 - **Enhanced Reddit Historical Scraper**: Comprehensive system for collecting oil-related discussions from Reddit spanning from 2008 to present
@@ -22,19 +23,20 @@ Oil Prophet is a sophisticated forecasting system that combines advanced time-se
   - Implements relevance filtering to focus on oil-related content
   - Maintains relationship between posts and their comments
   - Supports multi-subreddit collection with configurable parameters
+- **Sentiment Analysis Pipeline**: FinBERT-based sentiment analysis specifically adapted for oil market content
 - **Data Coverage Visualization**: Tools to analyze and visualize the coverage of collected data across different time periods
 - **Visualization System**: Comprehensive visualization tools for time series data, decomposition, forecasts, and model comparison
 - **Evaluation Framework**: Rigorous model evaluation with multiple metrics and statistical significance testing
 
 ### In Progress
-- **Sentiment Analysis Integration**: Currently enhancing FinBERT-based sentiment analysis for oil market-specific content
+- **Interactive Dashboard**: Web-based interface for exploring forecasts, model performance, and sentiment analysis (currently under active development)
 - **Historical News Data Collection**: Working on methods to collect pre-Reddit era (1987-2008) news articles
-- **Sentiment-Enhanced Forecasting**: Integrating sentiment features with price data for improved prediction accuracy
+- **Temporal Sentiment Aggregation**: Methods to aggregate sentiment across different timeframes for time-series analysis
 
 ### Planned
-- **Interactive Dashboard**: Web-based interface for exploring forecasts and model performance
 - **API Development**: Exposing model predictions through a REST API
-- **Temporal Sentiment Aggregation**: Methods to aggregate sentiment across different timeframes for time-series analysis
+- **Automated Retraining Pipeline**: System for periodically retraining models with new data
+- **Forecast Uncertainty Quantification**: Methods to provide confidence intervals for predictions
 
 ## Project Structure
 
@@ -53,6 +55,7 @@ oil-prophet/
 │   ├── models/
 │   │   ├── ceemdan.py       # Signal decomposition implementation
 │   │   ├── lstm_attention.py # LSTM with attention implementation
+│   │   ├── sentiment_enhanced_lstm.py # Sentiment-enhanced LSTM model
 │   │   ├── ensemble.py      # Ensemble forecasting models
 │   │   └── baseline.py      # Baseline forecasting models
 │   ├── evaluation/
@@ -61,11 +64,14 @@ oil-prophet/
 │   │   └── plots.py         # Visualization functions
 │   ├── nlp/
 │   │   ├── reddit_historical_scraper.py # Enhanced Reddit data scraper
-│   │   ├── finbert_sentiment.py         # FinBERT sentiment analysis (in progress)
+│   │   ├── finbert_sentiment.py         # FinBERT sentiment analysis
 │   │   ├── bert_sentiment.py            # BERT sentiment analysis
 │   │   ├── config_setup.py              # Reddit API configuration
 │   │   └── sentiment_demo.py            # Sentiment integration demo
 │   └── api/                 # (Planned) API implementation
+├── dashboard.py             # Interactive Streamlit dashboard (in development)
+├── run_forecast_pipeline.py # CLI for running the full forecasting pipeline
+├── test_sentiment_model.py  # Testing script for sentiment-enhanced models
 ├── tests/
 ├── requirements.txt
 ├── setup_checker.py         # System setup verification
@@ -76,13 +82,15 @@ oil-prophet/
 
 ## Recent Achievements
 
-✅ **Enhanced Reddit Scraper with Comments**: Successfully implemented a comprehensive Reddit scraper that collects both posts and their associated comments across multiple financial subreddits, with proper relationship maintenance between posts and comments.
+✅ **Sentiment-Enhanced LSTM Implementation**: Successfully integrated market sentiment features with technical price patterns in a combined forecasting model, showing improved accuracy over baseline models.
+
+✅ **Enhanced Reddit Scraper with Comments**: Implemented a comprehensive Reddit scraper that collects both posts and their associated comments across multiple financial subreddits, with proper relationship maintenance between posts and comments.
 
 ✅ **Multi-Subreddit Coverage**: The scraper successfully collects data from r/investing, r/stocks, r/stockmarket, r/wallstreetbets, r/options, r/finance, r/SecurityAnalysis, r/economics, r/economy, and r/business, providing a broad spectrum of market sentiment.
 
-✅ **Data Coverage Analysis**: Built tools to analyze and visualize the coverage of collected data, helping identify gaps in historical sentiment data.
+✅ **FinBERT Integration**: Successfully integrated specialized financial BERT models for improved sentiment analysis of oil market-specific content.
 
-✅ **FinBERT Integration**: Began integration of specialized financial BERT models for improved sentiment analysis of oil market-specific content.
+✅ **CLI Interface**: Developed a comprehensive command-line interface for running the complete forecasting pipeline.
 
 ## Roadmap
 
@@ -96,10 +104,10 @@ oil-prophet/
 - [x] Visualization system
 - [x] Model evaluation framework
 - [x] Historical Reddit data scraper with comments
-- [ ] Complete sentiment analysis implementation
+- [x] Complete sentiment analysis implementation
+- [x] Sentiment-enhanced LSTM model
+- [ ] Interactive visualization dashboard (in progress)
 - [ ] Historical news data collection (pre-Reddit era)
-- [ ] Sentiment-enhanced feature creation
-- [ ] Interactive visualization dashboard
 - [ ] API development
 
 ## Getting Started
@@ -135,61 +143,73 @@ oil-prophet/
 
 ### Usage Examples
 
-1. Data preprocessing:
+1. Run the complete forecasting pipeline:
+   ```bash
+   python run_forecast_pipeline.py --run-all
+   ```
+
+2. Test the sentiment-enhanced LSTM model:
+   ```bash
+   python test_sentiment_model.py --data_dir=data/processed/reddit_test_small
+   ```
+
+3. Run the interactive dashboard (currently in development):
+   ```bash
+   streamlit run dashboard.py
+   ```
+
+4. Data preprocessing:
    ```bash
    python -m src.data.preprocessing
    ```
 
-2. Run signal decomposition:
+5. Run signal decomposition:
    ```bash
    python -m src.models.ceemdan
    ```
 
-3. Generate visualizations:
+6. Generate visualizations:
    ```bash
    python -m src.visualization.plots
    ```
 
-4. Collect historical Reddit data with comments:
+7. Collect historical Reddit data with comments:
    ```bash
    python -m src.nlp.reddit_historical_scraper --start-year=2020 --end-year=2023 --skip-news --skip-financial --output-dir=data/processed/reddit_data
    ```
 
-5. Evaluate model performance:
+8. Analyze sentiment in collected data:
    ```bash
-   python -m src.evaluation.metrics
+   python -m src.nlp.finbert_sentiment --input=data/processed/reddit_test_small/comprehensive_sentiment_dataset.csv
    ```
 
-## Data Collection Details
+## Sentiment Analysis Integration
 
-### Reddit Historical Scraper
+The sentiment analysis pipeline now fully integrates with the forecasting models:
 
-The Reddit historical scraper collects data from financial subreddits with these key features:
+1. **FinBERT-Based Analysis**: Uses specialized financial BERT models pre-trained on financial texts for better sentiment understanding of oil market discussions.
 
-1. **Post and Comment Collection**: For each relevant post, the scraper also collects all associated comments, providing a complete picture of the discussion.
+2. **Domain Adaptation**: Implements oil market-specific term weighting to improve sentiment accuracy for industry terminology.
 
-2. **Relevance Filtering**: Uses keyword matching and relevance scoring to focus on oil-related content, with configurable relevance thresholds.
+3. **Temporal Aggregation**: Aggregates sentiment by time period (daily, weekly, monthly) for alignment with price data.
 
-3. **Data Structure**:
-   - Posts include title, text content, author, score, comment count, and creation date
-   - Comments include text, author, score, parent post ID, and creation date
-   - Relationship between posts and comments is maintained through post_id references
+4. **Feature Integration**: Combines sentiment features with price data in the input sequence for LSTM models.
 
-4. **Comprehensive Coverage**: Collects data from multiple subreddits focused on finance, investing, and economics to capture diverse perspectives.
+5. **Performance Enhancement**: Testing shows improved forecasting accuracy, especially during periods of high market volatility or significant news events.
 
-5. **Historical Range**: Can collect data from Reddit's inception (2008) to present day.
+## Interactive Dashboard (In Development)
 
-6. **Quality Filters**: Includes options to filter by post score and comment quality to focus on significant discussions.
+The interactive Streamlit dashboard is currently under development and includes:
 
-7. **Data Storage**: Saves data in both individual files per subreddit and a combined comprehensive dataset.
+1. **Forecast Explorer**: Compare predictions from different models, including sentiment-enhanced forecasts.
 
-### Planned News Data Collection
+2. **Model Performance Analysis**: Evaluate and compare model performance with various metrics.
 
-To complement Reddit data (which only goes back to 2008), the system is being enhanced to collect historical news articles about oil markets from 1987-2008 using:
+3. **Sentiment Analysis Visualization**: Explore the relationship between market sentiment and price movements.
 
-1. News archive APIs (NYTimes, etc.)
-2. Financial news databases
-3. Simulated historical data for periods with limited digital records
+4. **Signal Decomposition Analysis**: Visualize the components of price signals and their contributions.
+
+**Note**: The dashboard is still in active development and may have stability issues. We're working to resolve these and improve the user experience.
 
 ## Applications
 
@@ -200,27 +220,17 @@ This forecasting system is valuable for:
 - **Budget Planning**: Supporting businesses in financial planning that depends on oil price forecasts
 - **Market Research**: Providing insights into the relationship between market sentiment and oil prices
 
-## Current Development Focus
+## Future Work
 
-### Enhanced Sentiment Analysis
+Our next major milestones include:
 
-We're currently focused on improving the sentiment analysis component of the system:
+1. **Completing the Interactive Dashboard**: Finishing and stabilizing the Streamlit dashboard for easy exploration of forecasts and models.
 
-1. **FinBERT Integration**: Implementing specialized financial BERT models that are pre-trained on financial texts for better sentiment understanding of oil market discussions.
+2. **Historical News Data Collection**: Expanding data sources to include pre-Reddit era (1987-2008) news articles.
 
-2. **Comment-Level Sentiment Analysis**: Developing methods to analyze sentiment at the comment level and aggregate it for each discussion topic.
+3. **API Development**: Building a REST API for integrating predictions with other systems.
 
-3. **Historical Data Coverage**: Working on methods to fill gaps in historical sentiment data, especially for the pre-Reddit era (1987-2008).
-
-4. **Oil Market Domain Adaptation**: Adapting sentiment models to better understand oil-specific terminology and market dynamics.
-
-5. **Multi-Source Sentiment Aggregation**: Developing methods to combine sentiment signals from multiple sources (Reddit, news, financial datasets).
-
-6. **Temporal Sentiment Features**: Creating time-based sentiment features that can capture market sentiment shifts over different timeframes.
-
-### Future Work
-
-The next major milestone is to complete the sentiment analysis pipeline and integrate it with the forecasting models. This will allow the system to generate enhanced feature vectors that combine technical price patterns with market sentiment indicators, potentially improving prediction accuracy during periods of high market emotion.
+4. **Forecast Uncertainty Quantification**: Adding confidence intervals and probability distributions to predictions.
 
 ## License
 
