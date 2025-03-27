@@ -1,0 +1,13 @@
+{
+    "total_requests": 217,
+    "successful_requests": 0,
+    "failed_requests": 217,
+    "items_collected": {
+        "reddit_posts": 0,
+        "reddit_comments": 0,
+        "news_articles": 0,
+        "financial_data": 0
+    },
+    "retries": 1080,
+    "completed_at": "2025-03-27 02:56:16"
+}
