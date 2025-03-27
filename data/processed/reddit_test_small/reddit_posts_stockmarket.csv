@@ -1,0 +1,45 @@
+id,type,source,subreddit,title,text,url,permalink,author,score,num_comments,created_utc,created_date,is_self,relevance_score,relevance
+10zsjhe,post,reddit,StockMarket,Buy Oil Stocks Now !,,https://i.redd.it/9dvinlclvmha1.jpg,https://reddit.com/r/StockMarket/comments/10zsjhe/buy_oil_stocks_now/,SleepTrade,1232,326,1676135565.0,2023-02-11 17:12:45,False,1.0,high
+129nfz8,post,reddit,StockMarket,OPEC+ Makes Surprise 1 Million-Barrel Oil Production Cut,,https://www.bloomberg.com/news/articles/2023-04-02/saudi-arabia-makes-surprise-500-000-barrels-a-day-oil-output-cut,https://reddit.com/r/StockMarket/comments/129nfz8/opec_makes_surprise_1_millionbarrel_oil/,DrioMarqui,365,155,1680446973.0,2023-04-02 14:49:33,False,1.0,high
+137c3sv,post,reddit,StockMarket,"Shell makes $9.65 bln profit in first quarter, beating forecasts | Reuters",,https://www.reuters.com/business/energy/shell-makes-965-bln-profit-first-quarter-beating-forecasts-2023-05-04/,https://reddit.com/r/StockMarket/comments/137c3sv/shell_makes_965_bln_profit_in_first_quarter/,iahimide,148,25,1683181415.0,2023-05-04 06:23:35,False,0.31249999999999994,low
+12a0bw5,post,reddit,StockMarket,Oil prices soar after Saudi Arabia leads coordinated OPEC+ cuts totaling more than 1 million barrels a day,,https://on.mktw.net/3nJ0JtR,https://reddit.com/r/StockMarket/comments/12a0bw5/oil_prices_soar_after_saudi_arabia_leads/,DrioMarqui,52,38,1680474095.0,2023-04-02 22:21:35,False,1.0,high
+14ibt7j,post,reddit,StockMarket,Brazilian Oil Stocks Regression,"Hey guys, I've been working on a regression analysis algorithm on Python for brazilian stocks using yfinance.
+
+I was curious about the potential of Crude Oil futures (in BRL) to explain Petrobras (PETR4.SA) and Petrorio (PRIO3.SA) returns since both are major players in the oil industry here in Brazil.
+
+Here are the results using test\_size=0.3 and data from August 2021 to June 2023:
+
+reg\_linear(""PETR4.SA"")  
+Enter the number of attributes: 1  
+Define explanatory variable 1: CL=F  
+R-Square: 1.37%  
+Mean Absolute Error: 0.01817
+
+reg\_linear(""PRIO3.SA"")  
+Enter the number of attributes: 1  
+Define explanatory variable 1: CL=F  
+R-Square: 23.49%  
+Mean Absolute Error: 0.02022
+
+Notice how crude oil returns in BRL have more power to explain PRIO3 than PETR4, even though they are in the same industry. Considering Petrobras is a state owned company and Petrorio is not, I believe the difference comes from political risks translated into the stock's price, more research is needed.
+
+Plots: [https://www.reddit.com/user/2AcesRoth/comments/14ibsd0/regression\_analysis\_crude\_oil\_x\_brazilian\_oil/?utm\_source=share&utm\_medium=web2x&context=3](https://www.reddit.com/user/2AcesRoth/comments/14ibsd0/regression_analysis_crude_oil_x_brazilian_oil/?utm_source=share&utm_medium=web2x&context=3)",https://www.reddit.com/r/StockMarket/comments/14ibt7j/brazilian_oil_stocks_regression/,https://reddit.com/r/StockMarket/comments/14ibt7j/brazilian_oil_stocks_regression/,2AcesRoth,10,10,1687664287.0,2023-06-25 03:38:07,True,1.0,high
+144hc4x,post,reddit,StockMarket,Does anyone know why OIL stock has been halted all day?,,https://i.redd.it/ne01cl46au4b1.jpg,https://reddit.com/r/StockMarket/comments/144hc4x/does_anyone_know_why_oil_stock_has_been_halted/,deadalive2626,3,4,1686249722.0,2023-06-08 18:42:02,False,0.6818181818181819,medium
+12hkrfw,post,reddit,StockMarket,What Could Oil Fund Outflows Mean?,"Bloomberg [reports](https://www.bloomberg.com/news/articles/2023-04-10/oil-fund-outflows-may-point-to-demand-concerns-after-opec-cut?srnd=premium-middle-east&leadSource=uverify%20wall) that WisdomTree's Brent Crude Oil ETP (**BRNT**) experienced an outflow of $55.7 million on Thursday, the largest single-day drop since late 2019. Another fund, the ProShares Ultra Bloomberg Crude Oil ETF (**UCO**), saw outflows of $158.5 million last week, marking its biggest weekly decline since March 2022.
+
+Bloomberg considers this a sign for concern that weak demand will outweigh OPEC+'s sharp production cuts. Is this likely? Probably.
+
+Moreover, the arguments about a lack of available capacity (space capacity) — an explanation that OPEC representatives are fond of using — will now sound less convincing.
+
+However, it's not necessary to look for a significant fundamental basis in the data on fund outflows.
+
+With the exception of a couple of anomalous inflows and outflows in 2018-19, **BRNT** didn't have substantial funds before 2023.
+
+**UCO**, on the other hand, is a **leveraged fund**. After the recent price spike, profit-taking is logical. If it doesn’t claim the windfall now, the subsequent volatility will effectively reduce it.
+
+By the way, WisdomTree also has an oil fund with a 3x leverage – **3BLR**. It lost $23 million, which represents 80% of assets at the beginning of last week.
+
+Again, this is not surprising. Leveraged funds should be used precisely in this way.
+
+OPEC's ability or inability to control prices **is irrelevant in this case**.",https://www.reddit.com/r/StockMarket/comments/12hkrfw/what_could_oil_fund_outflows_mean/,https://reddit.com/r/StockMarket/comments/12hkrfw/what_could_oil_fund_outflows_mean/,bitkogan,16,4,1681137568.0,2023-04-10 14:39:28,True,1.0,high
+10b13ts,post,reddit,StockMarket,Can anyone ELI5 why oil prices have collapsed but oil-related companies are still surging?,"Oil is back to its pre-invasion price, yet companies like $XOM are still making ATHs. My assumptions were that there would be a relative correlation between the price of oil and the price of some of these commodity businesses. Is it overbought and due for a correction or is there more momentum behind this sector? I am a believer that our dependence on fossil fuels is not going anywhere any time soon, but am surprised by how strong this industry looks given the ""re-opening"" demand spike has subsided at this point. What sort of factors am I overlooking and what is the general industry outlook at the moment?",https://www.reddit.com/r/StockMarket/comments/10b13ts/can_anyone_eli5_why_oil_prices_have_collapsed_but/,https://reddit.com/r/StockMarket/comments/10b13ts/can_anyone_eli5_why_oil_prices_have_collapsed_but/,PrairieDogger69,17,22,1673633170.0,2023-01-13 18:06:10,True,0.8267195767195765,high

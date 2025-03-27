@@ -1,0 +1,19 @@
+{
+    "completed_subreddits": [
+        "investing",
+        "stocks",
+        "stockmarket",
+        "wallstreetbets",
+        "finance",
+        "economics",
+        "economy",
+        "business"
+    ],
+    "completed_news_sources": [],
+    "processed_dates": {},
+    "last_processed": {
+        "reddit": null,
+        "news": null,
+        "financial": null
+    }
+}

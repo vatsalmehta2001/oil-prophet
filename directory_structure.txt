@@ -2,15 +2,20 @@
     setup_checker.py
     generate_test_data.py
     .DS_Store
+    reddit_scraper.log
     dir.py
     LICENSE
     requirements.txt
     test_pyemd.py
+    test_reddit_scraper.py
     reddit_config.json
+    news_api_config.json
     README.md
     dashboard.py
     directory_structure.txt
     .gitignore
+    historical_data_scraper.log
+    cache/
     tests/
     models/
         .DS_Store
@@ -30,6 +35,7 @@
                 bf0e05f90e068e5594e1c11c5d0dcc20ff7785
             92/
                 ab839fdbde9ecb7c33181bab7efde9884a504d
+                2f8fcd90cf3cc9f5f455f4d2d3fdfd3ad648b9
             66/
                 c28cc89bb8135793e7b72bc5441a81077fecc2
             57/
@@ -38,14 +44,21 @@
                 dda31a3a4eb2fb120f8eb4fd5e6eefa783c303
             9e/
                 dcb88397751f65c4ce15cd0588f6e9b3da731b
+                79ef68cf3b31003b3e972f4fa229326ca70c80
             32/
                 0a876a139441c380a565fb771ad66da1a8e26c
             35/
                 c778b8b022a4ebd7b9e63eb9ba2f8689076013
             56/
                 783739777971a59a1f7fa7869eb5b32f70fa69
+            67/
+                ee168675a46662a211967b7406fd7a8c81e548
             34/
                 0bddae592099930262ce01697578b10584b513
+            33/
+                732f04c4145779f328985959334353fffc7c5c
+            9c/
+                aeb5ce3ac03b3ff9eb2e9d533609405bb98d7d
             02/
                 cc46b9ae2e2176edf5e42558d8bc9941f7abf5
                 3de3c1ae1fb214048ea59f190cae9fdef0a4c6
@@ -85,13 +98,19 @@
                 ae4e8ef1c5736408fb8956854ec7308fbc5aec
             42/
                 2519b05745f0b6dc73e8f4b9983b38357cd7db
+            80/
+                0967317fa58ed4af9fc1f2cd0e66c51b07ed58
             74/
                 781746f30c47786ccde1a1250ae4d229dc8401
+            1a/
+                dcc21a8c89a4099c8cc047981c40c342bec459
             7b/
                 cd868f9c94b0a626b26b641b626b36c2038c23
             8f/
                 40b14d41a4c84774e8b6fb1af8dec2a6d74071
                 9f00930e8ab831d5d40eaa29934004ee789c10
+            19/
+                8abc608d1651421554dad7bbcafacaed98e007
             4c/
                 83cf94730b9f886a6b386abbefef76b532467d
             26/
@@ -100,9 +119,13 @@
                 6e5503f842b273a40e65c29d78212543ea57e5
             81/
                 5314954bf49fe77d99a15f7907e4b7a668d100
+            44/
+                594c2d2b369fbbfdad9c370d5359cdd46df77a
             43/
                 7daeec1a1f5fac03a923a259d4a11587015773
             6e/
+                88828ce6c2f1b545dc82ddd97a24bb080974c3
+                7185dffedc1848d1b634211c859e33df5ae322
                 a5b6680e1c6673bb183a06506f4ae5d16ef792
             36/
                 a65fbd6cec65ace514597f5a6d2a5c091ab28e
@@ -114,6 +137,8 @@
             96/
                 222740a8b8b5f46bc48236be842833730c5d55
                 5b15cb88c680ce39c55a758d82570c8b3853eb
+            3a/
+                ccee557a2300b8df013fa0820948b010fd37a2
             53/
                 a43873260a9caf7748e7e7fb4d7d8085259c18
             5e/
@@ -126,6 +151,8 @@
                 3bb3b0585c39c019228508fa46a16ede355a74
             64/
                 86a13326229cb3577678ca696d973e94e424e5
+            d4/
+                d078c37a24a12fc323b0a4178ccc6c65e71875
             b8/
                 586c7f86fdd0a662a6374425625fdb860da7c7
             dc/
@@ -156,18 +183,28 @@
             e7/
                 b95811da5e93548d2d308a215ed7d7b312d826
             79/
+                76a1a0ba1a088de1a9a27a749678dd0710745e
                 ee2c74cefd1279d111f23f740165ef58e26791
             23/
                 32919e3ceb63ae0193c50177311ccb0a9cc31e
+            8d/
+                60e5fcb471b15959bf423b0e84d4c78dd7121b
             15/
                 b52e10c802a19f986d0946ea0c3ec17feb0405
                 93e2c857895404b660f7b317f6a59229dbb8a0
             8c/
                 6f6c4a450362ca98f680c230d57909cf1a0825
+            1c/
+                d5ad8e19957bcef7efb691dc270334f0dc55aa
             49/
                 a9c656e9edaf58ec35e9f0758016175e8f183e
+            8b/
+                ef10585637f518951571fae28febed0122b24e
             25/
                 42a1813b62cde6da5847f7c7eb3186581a10ec
+        .gitstatus.vLgWGe/
+            a/
+            b/
         info/
             exclude
         logs/
@@ -206,6 +243,31 @@
     data/
         .DS_Store
         processed/
+            .DS_Store
+            reddit_test/
+            historical/
+            reddit_test_small/
+                comprehensive_sentiment_dataset.csv
+                reddit_posts_stocks.csv
+                reddit_comments_stockmarket.csv
+                reddit_comments_investing.csv
+                reddit_comments_stocks.csv
+                reddit_comments_wallstreetbets.csv
+                reddit_posts_stockmarket.csv
+                reddit_posts_investing.csv
+                scraping_stats.json
+                scraping_state.json
+                reddit_posts_business.csv
+                reddit_posts_economics.csv
+                reddit_posts_economy.csv
+                reddit_comments_business.csv
+                reddit_posts_finance.csv
+                reddit_combined_data.csv
+                reddit_comments_finance.csv
+                reddit_comments_economics.csv
+                reddit_comments_economy.csv
+                reddit_posts_wallstreetbets.csv
+                coverage_stats.json
         raw/
             brent-year.csv
             wti-monthly.csv
@@ -241,15 +303,22 @@
                 baseline.cpython-311.pyc
                 ceemdan.cpython-311.pyc
         nlp/
+            reddit_historical_scraper.py
             bert_sentiment_init.py
+            run_sentiment_pipeline.py
+            run_historical_scraper.py
+            finbert_sentiment.py
+            sentiment_analysis_pipeline.py
             sentiment_demo.py
             bert_sentiment.py
             config_setup.py
             __pycache__/
                 config_setup.cpython-311.pyc
                 bert_sentiment_init.cpython-311.pyc
+                run_historical_scraper.cpython-311.pyc
                 sentiment_demo.cpython-311.pyc
                 bert_sentiment.cpython-311.pyc
+                reddit_historical_scraper.cpython-311.pyc
         api/
         evaluation/
             metrics.py

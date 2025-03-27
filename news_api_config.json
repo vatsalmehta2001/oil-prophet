@@ -1,0 +1,7 @@
+{
+    "api_keys": {
+        "nytimes": "YOUR_NYTIMES_API_KEY",
+        "financial-times": "YOUR_FT_API_KEY",
+        "wsj": "YOUR_WSJ_API_KEY"
+    }
+}

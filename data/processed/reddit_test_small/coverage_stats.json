@@ -1,0 +1,28 @@
+{
+    "total_items": 1811,
+    "time_range": {
+        "start": "2023-01-04",
+        "end": "2023-12-16",
+        "span_days": 346
+    },
+    "by_source": {
+        "reddit": 1811
+    },
+    "by_type": {
+        "comment": 1765,
+        "post": 46
+    },
+    "by_year": {
+        "2023": 1811
+    },
+    "by_relevance": {
+        "inherited": 1765,
+        "high": 28,
+        "medium": 13,
+        "low": 5
+    },
+    "coverage_issues": {
+        "missing_years": [],
+        "low_coverage_years": []
+    }
+}

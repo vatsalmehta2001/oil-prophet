@@ -1,5 +1,19 @@
 {
-    "client_id": "YNnpGUsSVTH-94FqVOK6ug",
-    "client_secret": "mXHF3zW4w3FdzO_Q66YEmB6De65dNQ",
-    "user_agent": "OilProphet/1.0 (by /u/your_reddit_username)"
+    "reddit": {
+        "client_id": "YNnpGUsSVTH-94FqVOK6ug",
+        "client_secret": "mXHF3zW4w3FdzO_Q66YEmB6De65dNQ",
+        "user_agent": "OilProphet/1.0 (by /u/m0kiro)"
+    },
+    "api_keys": {
+        "nytimes_api_key": "",
+        "reuters_api_key": "",
+        "ft_api_key": "",
+        "wsj_api_key": ""
+    },
+    "scraping": {
+        "batch_size": 100,
+        "max_requests_per_minute": 30,
+        "max_posts_per_subreddit": 5000,
+        "max_comments_per_post": 500
+    }
 }
