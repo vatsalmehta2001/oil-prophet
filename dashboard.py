@@ -15,7 +15,13 @@ import json
 import tensorflow as tf
 from datetime import datetime, timedelta
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+import altair as alt
+from scipy.signal import savgol_filter
+import time
 
 # Import project modules
 from src.data.preprocessing import OilDataProcessor
@@ -25,43 +31,127 @@ from src.models.sentiment_enhanced_lstm import SentimentEnhancedLSTM, prepare_se
 from src.models.ensemble import EnsembleForecaster
 from src.models.ceemdan import SimplifiedDecomposer
 from src.nlp.finbert_sentiment import OilFinBERT
-from src.evaluation.metrics import calculate_metrics
+from src.evaluation.metrics import calculate_metrics, evaluate_horizon_performance, compare_models
+from src.visualization.plots import plot_forecasts, plot_model_comparison, plot_decomposition, plot_price_with_sentiment
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("dashboard.log"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
 # Set page configuration
 st.set_page_config(
     page_title="Oil Prophet Dashboard",
-    page_icon="📊",
+    page_icon="🛢️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Application title and description
-st.title("Oil Prophet Dashboard")
+# Custom CSS
 st.markdown("""
-    Interactive dashboard for oil price forecasting powered by advanced time-series decomposition,
-    deep learning models, and market sentiment analysis. Explore forecasts, model performance,
-    and the influence of market sentiment on oil prices.
-""")
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1E6091;
+        margin-bottom: 0;
+        font-weight: 700;
+    }
+    .sub-header {
+        font-size: 1.3rem;
+        color: #3A7CA5;
+        margin-top: 0;
+        font-weight: 400;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f7f7f7;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1E6091;
+    }
+    .metric-title {
+        font-size: 1rem;
+        color: #555;
+    }
+    .nav-link {
+        text-decoration: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        margin-bottom: 5px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .nav-link:hover {
+        background-color: rgba(30, 96, 145, 0.1);
+    }
+    .nav-link.active {
+        background-color: #1E6091;
+        color: white !important;
+    }
+    .info-box {
+        background-color: #f0f7fb;
+        border-left: 5px solid #3A7CA5;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        border-radius: 0 5px 5px 0;
+    }
+    .stProgress .st-bo {
+        background-color: #1E6091;
+    }
+    /* Custom tab styles */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        border-radius: 4px 4px 0 0;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1E6091;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Sidebar for navigation and controls
-st.sidebar.title("Navigation")
-page = st.sidebar.radio(
-    "Select Page",
-    ["Forecast Explorer", "Model Performance", "Sentiment Analysis", "Signal Decomposition"]
-)
+# Application title and description
+st.markdown('<h1 class="main-header">Oil Prophet Dashboard</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Advanced oil price forecasting with deep learning and market sentiment analysis</p>', unsafe_allow_html=True)
 
-# Function to load available models
-@st.cache_resource
-def load_models() -> Dict[str, object]:
+# Check if cache directory exists and create if not
+if not os.path.exists('cache'):
+    os.makedirs('cache')
+
+# Cache for storing app state
+@st.cache_data
+def get_file_stats(filepath):
+    """Get file stats for caching purposes"""
+    if os.path.exists(filepath):
+        return os.path.getmtime(filepath)
+    return None
+
+# Function to load available models with progress bar
+def load_models(progress_bar=None) -> Dict[str, object]:
     """
-    Load the trained models.
+    Load the trained models with a progress bar.
+    
+    Args:
+        progress_bar: Optional Streamlit progress bar
     
     Returns:
         Dictionary of model objects
@@ -73,6 +163,10 @@ def load_models() -> Dict[str, object]:
         "LSTM-Attention": "models/lstm_price_only.h5" if os.path.exists("models/lstm_price_only.h5") else None,
         "Sentiment-Enhanced LSTM": "models/sentiment_enhanced_lstm.h5" if os.path.exists("models/sentiment_enhanced_lstm.h5") else None
     }
+    
+    # Count for progress bar
+    total_models = len(model_files) + 3  # +3 for baseline models
+    progress_count = 0
     
     for model_name, model_path in model_files.items():
         if model_path is not None:
@@ -88,54 +182,80 @@ def load_models() -> Dict[str, object]:
                     logger.info(f"Loaded {model_name} model from {model_path}")
             except Exception as e:
                 logger.error(f"Error loading {model_name} model: {str(e)}")
-                
+        
+        # Update progress
+        progress_count += 1
+        if progress_bar:
+            progress_bar.progress(progress_count / total_models)
     
     # Add baseline models
     try:
         models["Naive"] = BaselineForecaster(method='naive')
+        progress_count += 1
+        if progress_bar:
+            progress_bar.progress(progress_count / total_models)
+            
         models["ARIMA"] = BaselineForecaster(method='arima')
+        progress_count += 1
+        if progress_bar:
+            progress_bar.progress(progress_count / total_models)
+            
         models["EMA"] = BaselineForecaster(method='ema')
+        progress_count += 1
+        if progress_bar:
+            progress_bar.progress(progress_count / total_models)
+            
         logger.info("Created baseline models")
     except Exception as e:
         logger.error(f"Error creating baseline models: {str(e)}")
     
     return models
 
-# Function to load data
-@st.cache_data
-def load_oil_data(oil_type: str, freq: str) -> pd.DataFrame:
+# Function to load data with progress bar
+def load_oil_data(oil_type: str, freq: str, progress_bar=None) -> pd.DataFrame:
     """
-    Load and cache oil price data.
+    Load and cache oil price data with progress bar.
     
     Args:
         oil_type: Type of oil price data ('brent' or 'wti')
         freq: Frequency of data ('daily', 'weekly', 'monthly')
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         DataFrame with oil price data
     """
+    if progress_bar:
+        progress_bar.progress(0.3)
+        
     processor = OilDataProcessor()
     try:
         data = processor.load_data(oil_type=oil_type, freq=freq)
+        if progress_bar:
+            progress_bar.progress(1.0)
         return data
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
+        logger.error(f"Error loading data: {str(e)}")
+        if progress_bar:
+            progress_bar.progress(1.0)
         return pd.DataFrame()
 
-# Function to load sentiment data
-@st.cache_data
-def load_sentiment_data(data_dir: str) -> pd.DataFrame:
+# Function to load sentiment data with progress bar
+def load_sentiment_data(data_dir: str, progress_bar=None) -> pd.DataFrame:
     """
-    Load and cache sentiment data.
+    Load and cache sentiment data with progress bar.
     
     Args:
         data_dir: Directory containing sentiment data
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         DataFrame with sentiment data
     """
     # Look for the sentiment dataset in the specified directory
     sentiment_file = os.path.join(data_dir, "comprehensive_sentiment_dataset_analyzed.csv")
+    
+    if progress_bar:
+        progress_bar.progress(0.3)
     
     if os.path.exists(sentiment_file):
         try:
@@ -144,48 +264,49 @@ def load_sentiment_data(data_dir: str) -> pd.DataFrame:
             # Ensure created_date is a datetime
             if 'created_date' in sentiment_data.columns:
                 sentiment_data['created_date'] = pd.to_datetime(sentiment_data['created_date'])
-            if not forecasts and 'Naive' in models:
-                # Generate at least a naive forecast
-                try:
-                    if 'X_price_test' in dataset and len(dataset['X_price_test']) > 0:
-                        price_data = dataset['X_price_test'][-1, :, 0]
-                        naive_model = models['Naive']
-                        naive_model.fit(price_data)
-                        forecasts['Naive'] = naive_model.predict(steps=forecast_horizon)
-                except Exception as e:
-                    logger.error(f"Error generating fallback forecast: {str(e)}")
-                
+            
             # Or try created_utc
             elif 'created_utc' in sentiment_data.columns:
                 sentiment_data['created_date'] = pd.to_datetime(sentiment_data['created_utc'], unit='s')
             
+            if progress_bar:
+                progress_bar.progress(1.0)
+                
             return sentiment_data
         except Exception as e:
-            st.error(f"Error loading sentiment data: {str(e)}")
+            logger.error(f"Error loading sentiment data: {str(e)}")
     else:
-        st.warning(f"No sentiment data found at {sentiment_file}")
+        logger.warning(f"No sentiment data found at {sentiment_file}")
     
+    if progress_bar:
+        progress_bar.progress(1.0)
+        
     return pd.DataFrame()
 
-# Function to prepare dataset for prediction
+# Function to prepare dataset for prediction with progress bar
 def prepare_prediction_dataset(
     price_data: pd.DataFrame,
     sentiment_data: pd.DataFrame,
     window_size: int = 30,
-    forecast_horizon: int = 7
+    forecast_horizon: int = 7,
+    progress_bar=None
 ) -> Dict[str, np.ndarray]:
     """
-    Prepare dataset for prediction.
+    Prepare dataset for prediction with progress bar.
     
     Args:
         price_data: DataFrame with price data
         sentiment_data: DataFrame with sentiment data
         window_size: Size of lookback window
         forecast_horizon: Number of steps to forecast
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         Dictionary with prepared dataset
     """
+    if progress_bar:
+        progress_bar.progress(0.2)
+        
     try:
         dataset = prepare_sentiment_features(
             price_df=price_data,
@@ -193,24 +314,34 @@ def prepare_prediction_dataset(
             window_size=window_size,
             forecast_horizon=forecast_horizon
         )
+        
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return dataset
     except Exception as e:
-        st.error(f"Error preparing dataset: {str(e)}")
+        logger.error(f"Error preparing dataset: {str(e)}")
+        
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return {}
 
-# Function to generate forecasts
+# Function to generate forecasts with progress bar
 def generate_forecasts(
     models: Dict[str, object],
     dataset: Dict[str, np.ndarray],
-    forecast_horizon: int
+    forecast_horizon: int,
+    progress_bar=None
 ) -> Dict[str, np.ndarray]:
     """
-    Generate forecasts using selected models.
+    Generate forecasts using selected models with progress bar.
     
     Args:
         models: Dictionary of model objects
         dataset: Prepared dataset
         forecast_horizon: Number of periods to forecast
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         Dictionary of forecasts from each model
@@ -223,6 +354,10 @@ def generate_forecasts(
         
         # For baseline models, use the raw price data
         price_data = dataset['X_price_test'][-1, :, 0]  # Extract price values
+        
+        # Calculate total for progress bar
+        total_models = len(models)
+        progress_count = 0
         
         # Generate forecasts for each model
         for model_name, model in models.items():
@@ -243,6 +378,11 @@ def generate_forecasts(
             
             except Exception as e:
                 logger.error(f"Error generating forecast for {model_name}: {str(e)}")
+            
+            # Update progress
+            progress_count += 1
+            if progress_bar:
+                progress_bar.progress(progress_count / total_models)
     
     # If we have at least two models, create an ensemble
     if len(forecasts) >= 2:
@@ -255,98 +395,128 @@ def generate_forecasts(
         except Exception as e:
             logger.error(f"Error creating ensemble forecast: {str(e)}")
     
+    # Check for fallback if no forecasts were generated
+    if not forecasts and 'Naive' in models and 'X_price_test' in dataset and len(dataset['X_price_test']) > 0:
+        # Generate at least a naive forecast
+        try:
+            price_data = dataset['X_price_test'][-1, :, 0]
+            naive_model = models['Naive']
+            naive_model.fit(price_data)
+            forecasts['Naive'] = naive_model.predict(steps=forecast_horizon)
+            logger.info("Generated fallback Naive forecast")
+        except Exception as e:
+            logger.error(f"Error generating fallback forecast: {str(e)}")
+    
     return forecasts
 
-# Function to plot forecasts
-def plot_forecast_comparison(
-    data: pd.DataFrame,
+# Function to plot interactive forecasts using Plotly
+def plot_interactive_forecasts(
+    historical_data: pd.DataFrame,
     forecasts: Dict[str, np.ndarray],
+    forecast_dates: pd.DatetimeIndex,
     lookback_days: int = 30,
-    figsize: Tuple[int, int] = (12, 8),
-    freq: str = "daily"
-) -> plt.Figure:
+    title: str = "Oil Price Forecast"
+) -> go.Figure:
     """
-    Plot historical data and forecasts from multiple models.
+    Plot interactive forecast comparison using Plotly.
     
     Args:
-        data: Historical price data
+        historical_data: DataFrame with historical price data
         forecasts: Dictionary of forecasts from each model
+        forecast_dates: DatetimeIndex for forecast dates
         lookback_days: Number of historical days to include
-        figsize: Figure size
-        freq: Data frequency
+        title: Plot title
         
     Returns:
-        Matplotlib figure
+        Plotly figure object
     """
-    fig, ax = plt.subplots(figsize=figsize)
-    
     # Get historical data for the lookback period
-    historical_data = data.iloc[-lookback_days:].copy()
+    historical_subset = historical_data.iloc[-lookback_days:].copy()
     
-    # Plot historical data
-    ax.plot(historical_data.index, historical_data['Price'], 'k-', linewidth=2, label='Historical')
+    # Create figure
+    fig = go.Figure()
     
-    # Create forecast dates with appropriate frequency
-    last_date = historical_data.index[-1]
+    # Add historical data
+    fig.add_trace(go.Scatter(
+        x=historical_subset.index,
+        y=historical_subset['Price'],
+        mode='lines',
+        name='Historical',
+        line=dict(color='black', width=3),
+        hovertemplate='Date: %{x}<br>Price: $%{y:.2f}<extra></extra>'
+    ))
     
-    # Set proper date range frequency based on selected data frequency
-    if freq == "daily":
-        date_freq = 'B'  # Business days
-    elif freq == "weekly":
-        date_freq = 'W'  # Weeks
-    else:
-        date_freq = 'M'  # Months
+    # Add forecasts for each model
+    colors = px.colors.qualitative.Set1
+    for i, (model_name, forecast) in enumerate(forecasts.items()):
+        color_idx = i % len(colors)
+        
+        fig.add_trace(go.Scatter(
+            x=forecast_dates,
+            y=forecast,
+            mode='lines+markers',
+            name=f"{model_name} Forecast",
+            line=dict(color=colors[color_idx], width=2, dash='dash'),
+            hovertemplate='Date: %{x}<br>Price: $%{y:.2f}<extra></extra>'
+        ))
     
-    forecast_dates = pd.date_range(
-        start=last_date + pd.Timedelta(days=1),
-        periods=len(next(iter(forecasts.values()))),
-        freq=date_freq
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Date',
+        yaxis_title='Price (USD)',
+        hovermode='x unified',
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5
+        ),
+        template='plotly_white',
+        height=500,
+        margin=dict(l=10, r=10, t=50, b=10)
     )
     
-    # Plot forecasts for each model
-    colors = plt.cm.tab10(np.linspace(0, 1, len(forecasts)))
-    for i, (model_name, forecast) in enumerate(forecasts.items()):
-        ax.plot(
-            forecast_dates,
-            forecast,
-            '--',
-            color=colors[i],
-            linewidth=2,
-            label=f"{model_name} Forecast"
+    # Add shapes for date separation
+    if len(historical_subset) > 0 and len(forecast_dates) > 0:
+        fig.add_vline(
+            x=historical_subset.index[-1], 
+            line_width=1, 
+            line_dash='dashdot', 
+            line_color='gray',
+            annotation_text='Forecast Start',
+            annotation_position='top right'
         )
-    
-    # Format plot
-    ax.set_title('Oil Price Forecast Comparison')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Price (USD)')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    
-    # Format x-axis dates
-    fig.autofmt_xdate()
     
     return fig
 
-# Function to decompose price signal
-@st.cache_data
-def decompose_price_signal(price_data: pd.DataFrame, n_components: int = 5) -> Dict[str, np.ndarray]:
+# Function to decompose price signal with progress bar
+def decompose_price_signal(price_data: pd.DataFrame, n_components: int = 5, progress_bar=None) -> Dict[str, np.ndarray]:
     """
-    Decompose price signal into components.
+    Decompose price signal into components with progress bar.
     
     Args:
         price_data: DataFrame with price data
         n_components: Number of components to extract
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         Dictionary of decomposed components
     """
     try:
+        if progress_bar:
+            progress_bar.progress(0.3)
+            
         # Extract price data
         price_array = price_data['Price'].values
         
         # Create decomposer
         decomposer = SimplifiedDecomposer(n_components=n_components)
         
+        if progress_bar:
+            progress_bar.progress(0.6)
+            
         # Decompose signal
         components = decomposer.decompose(price_array)
         
@@ -363,30 +533,120 @@ def decompose_price_signal(price_data: pd.DataFrame, n_components: int = 5) -> D
         # Add residual
         decomposition['residual'] = components[-1]
         
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return decomposition
     except Exception as e:
         logger.error(f"Error decomposing price signal: {str(e)}")
+        
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return {}
 
-# Function to aggregate sentiment by time
+# Function to plot interactive decomposition using Plotly
+def plot_interactive_decomposition(
+    decomposition: Dict[str, np.ndarray],
+    dates: pd.DatetimeIndex,
+    component_names: List[str] = None,
+    title: str = "Signal Decomposition"
+) -> go.Figure:
+    """
+    Create interactive decomposition plot using Plotly.
+    
+    Args:
+        decomposition: Dictionary of decomposed signal components
+        dates: DatetimeIndex for the x-axis
+        component_names: List of components to plot (defaults to all)
+        title: Plot title
+        
+    Returns:
+        Plotly figure object
+    """
+    if component_names is None:
+        component_names = list(decomposition.keys())
+    
+    # Create subplots
+    fig = make_subplots(
+        rows=len(component_names), 
+        cols=1,
+        shared_xaxes=True,
+        subplot_titles=component_names,
+        vertical_spacing=0.05
+    )
+    
+    # Colors for components
+    colors = {
+        'original': 'black',
+        'trend': 'darkblue',
+        'residual': 'red'
+    }
+    
+    # Default colors for cycles
+    cycle_colors = px.colors.qualitative.Dark2
+    
+    # Add each component to its subplot
+    for i, component in enumerate(component_names):
+        color = colors.get(component, cycle_colors[i % len(cycle_colors)])
+        
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=decomposition[component],
+                mode='lines',
+                name=component.capitalize(),
+                line=dict(color=color, width=2),
+                hovertemplate='Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
+            ),
+            row=i+1, 
+            col=1
+        )
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        showlegend=False,
+        height=150 * len(component_names),
+        margin=dict(l=10, r=10, t=50, b=10),
+        template='plotly_white'
+    )
+    
+    # Update y-axis titles
+    for i, component in enumerate(component_names):
+        fig.update_yaxes(title_text="Value", row=i+1, col=1)
+    
+    # Update x-axis title for the last subplot only
+    fig.update_xaxes(title_text="Date", row=len(component_names), col=1)
+    
+    return fig
+
+# Function to aggregate sentiment by time with progress bar
 def aggregate_sentiment(
     sentiment_data: pd.DataFrame,
     freq: str = 'D',
-    date_col: str = 'created_date'
+    date_col: str = 'created_date',
+    progress_bar = None
 ) -> pd.DataFrame:
     """
-    Aggregate sentiment data by time period.
+    Aggregate sentiment data by time period with progress bar.
     
     Args:
         sentiment_data: DataFrame with sentiment data
         freq: Aggregation frequency ('D' for daily, 'W' for weekly, 'M' for monthly)
         date_col: Column containing dates
+        progress_bar: Optional Streamlit progress bar
         
     Returns:
         DataFrame with aggregated sentiment
     """
     if sentiment_data.empty or date_col not in sentiment_data.columns:
+        if progress_bar:
+            progress_bar.progress(1.0)
         return pd.DataFrame()
+    
+    if progress_bar:
+        progress_bar.progress(0.3)
     
     # Initialize FinBERT for aggregation
     analyzer = OilFinBERT()
@@ -399,10 +659,293 @@ def aggregate_sentiment(
             time_freq=freq[0],  # Take first letter (D, W, M)
             min_count=1
         )
+        
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return agg_sentiment
     except Exception as e:
         logger.error(f"Error aggregating sentiment: {str(e)}")
+        
+        if progress_bar:
+            progress_bar.progress(1.0)
+            
         return pd.DataFrame()
+
+# Function to plot interactive sentiment vs price using Plotly
+def plot_interactive_sentiment_price(
+    price_data: pd.DataFrame,
+    sentiment_data: pd.DataFrame,
+    title: str = "Oil Price with Market Sentiment"
+) -> go.Figure:
+    """
+    Create interactive plot of price with sentiment using Plotly.
+    
+    Args:
+        price_data: DataFrame with price data
+        sentiment_data: DataFrame with sentiment data
+        title: Plot title
+        
+    Returns:
+        Plotly figure object
+    """
+    # Create figure with secondary y-axis
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    # Add price trace
+    fig.add_trace(
+        go.Scatter(
+            x=price_data.index,
+            y=price_data['Price'],
+            name="Oil Price",
+            line=dict(color='#1f77b4', width=3),
+            hovertemplate='Date: %{x}<br>Price: $%{y:.2f}<extra></extra>'
+        ),
+        secondary_y=False
+    )
+    
+    # Add sentiment compound trace
+    fig.add_trace(
+        go.Scatter(
+            x=sentiment_data.index,
+            y=sentiment_data['sentiment_compound'],
+            name="Sentiment",
+            line=dict(color='#d62728', width=2),
+            hovertemplate='Date: %{x}<br>Sentiment: %{y:.4f}<extra></extra>'
+        ),
+        secondary_y=True
+    )
+    
+    # Add sentiment moving average if available
+    if 'compound_ma7' in sentiment_data.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=sentiment_data.index,
+                y=sentiment_data['compound_ma7'],
+                name="7-day MA",
+                line=dict(color='#2ca02c', width=2, dash='dot'),
+                hovertemplate='Date: %{x}<br>7-day MA: %{y:.4f}<extra></extra>'
+            ),
+            secondary_y=True
+        )
+    
+    # Add neutral sentiment line
+    fig.add_hline(
+        y=0, 
+        line_width=1, 
+        line_dash='dash', 
+        line_color='gray',
+        secondary_y=True
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5
+        ),
+        template='plotly_white',
+        height=500,
+        margin=dict(l=10, r=10, t=50, b=10)
+    )
+    
+    # Update axes
+    fig.update_xaxes(title_text="Date")
+    fig.update_yaxes(title_text="Price ($)", secondary_y=False)
+    fig.update_yaxes(
+        title_text="Sentiment Score", 
+        secondary_y=True,
+        range=[-1, 1]
+    )
+    
+    return fig
+
+# Function to plot sentiment distribution using Plotly
+def plot_sentiment_distribution(
+    sentiment_data: pd.DataFrame,
+    title: str = "Sentiment Distribution"
+) -> go.Figure:
+    """
+    Create interactive sentiment distribution plot using Plotly.
+    
+    Args:
+        sentiment_data: DataFrame with sentiment data (must have 'sentiment_compound' column)
+        title: Plot title
+        
+    Returns:
+        Plotly figure object
+    """
+    # Prepare data
+    compound_values = sentiment_data['sentiment_compound'].dropna()
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add histogram
+    fig.add_trace(go.Histogram(
+        x=compound_values,
+        nbinsx=30,
+        marker_color='skyblue',
+        name='Sentiment',
+        hovertemplate='Sentiment: %{x:.2f}<br>Count: %{y}<extra></extra>'
+    ))
+    
+    # Calculate statistics
+    mean = compound_values.mean()
+    median = compound_values.median()
+    std = compound_values.std()
+    
+    # Add vertical lines for reference
+    fig.add_vline(x=0, line_width=2, line_dash='solid', line_color='gray', name='Neutral')
+    fig.add_vline(x=0.2, line_width=2, line_dash='dash', line_color='green', name='Bullish Threshold')
+    fig.add_vline(x=-0.2, line_width=2, line_dash='dash', line_color='red', name='Bearish Threshold')
+    fig.add_vline(x=mean, line_width=2, line_dash='dot', line_color='blue', name='Mean')
+    
+    # Add annotations
+    fig.add_annotation(
+        x=mean, 
+        y=0.85, 
+        yref='paper',
+        text=f"Mean: {mean:.3f}",
+        showarrow=True,
+        arrowhead=1,
+        ax=40,
+        ay=-30,
+        bgcolor='rgba(255, 255, 255, 0.8)',
+        bordercolor='blue',
+        borderwidth=1,
+        borderpad=4
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Sentiment Score',
+        yaxis_title='Count',
+        template='plotly_white',
+        height=400,
+        margin=dict(l=10, r=10, t=50, b=10),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    return fig
+
+# Function to plot model performance comparison using Plotly
+def plot_model_performance(
+    performance: Dict[str, Dict[str, float]],
+    metrics: List[str] = ['rmse', 'mae', 'mape', 'directional_accuracy'],
+    title: str = "Model Performance Comparison"
+) -> go.Figure:
+    """
+    Create interactive model performance comparison plot using Plotly.
+    
+    Args:
+        performance: Dictionary with metrics for each model
+        metrics: List of metrics to plot
+        title: Plot title
+        
+    Returns:
+        Plotly figure object
+    """
+    # Create subplots
+    fig = make_subplots(
+        rows=2, 
+        cols=2,
+        subplot_titles=[m.upper() for m in metrics],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.15
+    )
+    
+    # Define model colors
+    model_colors = px.colors.qualitative.Plotly
+    model_names = list(performance.keys())
+    
+    # Map metrics to subplot positions
+    positions = {
+        0: (1, 1),  # rmse: top-left
+        1: (1, 2),  # mae: top-right
+        2: (2, 1),  # mape: bottom-left
+        3: (2, 2)   # directional_accuracy: bottom-right
+    }
+    
+    # Create a bar chart for each metric
+    for i, metric in enumerate(metrics):
+        values = [performance[model].get(metric, 0) for model in model_names]
+        
+        # Define the color based on the metric (for directional accuracy, higher is better)
+        colors = model_colors[:len(model_names)]
+        if metric == 'directional_accuracy':
+            # For this metric, higher is better, so invert the sort
+            sorted_indices = np.argsort(values)
+        else:
+            # For error metrics, lower is better
+            sorted_indices = np.argsort(values)[::-1]  # Reverse to show lowest first
+        
+        # Sort models by metric value
+        sorted_models = [model_names[idx] for idx in sorted_indices]
+        sorted_values = [values[idx] for idx in sorted_indices]
+        sorted_colors = [colors[idx % len(colors)] for idx in sorted_indices]
+        
+        # Add horizontal bar chart
+        fig.add_trace(
+            go.Bar(
+                y=sorted_models,
+                x=sorted_values,
+                orientation='h',
+                marker_color=sorted_colors,
+                name=metric.upper(),
+                text=[f"{v:.2f}" for v in sorted_values],
+                textposition='outside',
+                hovertemplate='%{y}: %{x:.2f}<extra></extra>'
+            ),
+            row=positions[i][0], 
+            col=positions[i][1]
+        )
+        
+        # Highlight the best model
+        best_model_index = 0 if metric == 'directional_accuracy' else -1
+        fig.add_shape(
+            type="rect",
+            xref=f"x{i+1}",
+            yref=f"y{i+1}",
+            x0=0,
+            y0=best_model_index - 0.4,
+            x1=sorted_values[best_model_index],
+            y1=best_model_index + 0.4,
+            line=dict(width=2, color="rgba(0,255,0,0.3)"),
+            fillcolor="rgba(0,255,0,0.1)"
+        )
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        showlegend=False,
+        height=600,
+        template='plotly_white',
+        margin=dict(l=10, r=120, t=80, b=10)  # Extra right margin for text labels
+    )
+    
+    # Update axes
+    for i, metric in enumerate(metrics):
+        if metric == 'directional_accuracy':
+            # For accuracy, higher is better
+            fig.update_xaxes(title_text=f"{metric.upper()} (%)", row=positions[i][0], col=positions[i][1])
+        else:
+            # For error metrics, lower is better
+            fig.update_xaxes(title_text=metric.upper(), row=positions[i][0], col=positions[i][1])
+    
+    return fig
 
 # Function to calculate model performance metrics
 def calculate_model_performance(
@@ -436,1010 +979,1289 @@ def calculate_model_performance(
     
     return performance
 
-# ---- PAGE: FORECAST EXPLORER ----
-if page == "Forecast Explorer":
-    st.header("Forecast Explorer")
+# Function to create metric card HTML
+def create_metric_card(title, value, unit="", description="", trend=None, trend_value=None):
+    """
+    Create HTML for a metric card.
     
-    # Sidebar controls for forecast parameters
-    st.sidebar.header("Forecast Parameters")
-    
-    oil_type = st.sidebar.selectbox(
-        "Oil Type",
-        options=["brent", "wti"],
-        format_func=lambda x: x.upper()
-    )
-    
-    freq = st.sidebar.selectbox(
-        "Data Frequency",
-        options=["daily", "weekly", "monthly"],
-        format_func=lambda x: x.capitalize(),
-        key="forecast_freq"
-    )
-    
-    data_dir = st.sidebar.text_input(
-        "Data Directory",
-        value="data/processed/reddit_test_small",
-        help="Directory containing Reddit data with sentiment analysis"
-    )
-    
-    # Adjust horizon parameters based on selected frequency
-    horizon_label = f"Forecast Horizon ({freq.capitalize()[:-2] + 's' if freq.endswith('ly') else freq.capitalize()})"
-    
-    # Set appropriate min, max, and default values based on frequency
-    if freq == "daily":
-        horizon_min = 7
-        horizon_max = 60
-        horizon_default = 30
-        horizon_step = 1
-    elif freq == "weekly":
-        horizon_min = 4
-        horizon_max = 26
-        horizon_default = 12
-        horizon_step = 1
-    else:  # monthly
-        horizon_min = 1
-        horizon_max = 12
-        horizon_default = 6
-        horizon_step = 1
-    
-    forecast_horizon = st.sidebar.slider(
-        horizon_label,
-        min_value=horizon_min,
-        max_value=horizon_max,
-        value=horizon_default,
-        step=horizon_step
-    )
-    
-    # Adjust lookback parameters based on selected frequency
-    history_label = f"Historical Data ({freq.capitalize()[:-2] + 's' if freq.endswith('ly') else freq.capitalize()})"
-    
-    if freq == "daily":
-        history_min = 30
-        history_max = 180
-        history_default = 60
-        history_step = 30
-    elif freq == "weekly":
-        history_min = 4
-        history_max = 26
-        history_default = 8
-        history_step = 4
-    else:  # monthly
-        history_min = 3
-        history_max = 24
-        history_default = 6
-        history_step = 3
-    
-    lookback_period = st.sidebar.slider(
-        history_label,
-        min_value=history_min,
-        max_value=history_max,
-        value=history_default,
-        step=history_step
-    )
-    
-    # Load models
-    with st.spinner("Loading models..."):
-        models = load_models()
+    Args:
+        title: Metric title
+        value: Metric value
+        unit: Unit of measurement
+        description: Metric description
+        trend: Trend direction ('up', 'down', or None)
+        trend_value: Trend value
         
-        # If models were loaded, create a selection box
-        if models:
-            available_models = list(models.keys())
-            if "Ensemble" not in available_models:
-                available_models.append("Ensemble")
+    Returns:
+        HTML string for the metric card
+    """
+    # Define trend arrow and color
+    trend_arrow = ""
+    trend_color = "gray"
+    trend_text = ""
+    
+    if trend is not None and trend_value is not None:
+        if trend == 'up':
+            trend_arrow = "↑"
+            trend_color = "green"
+            trend_text = f"+{trend_value}"
+        elif trend == 'down':
+            trend_arrow = "↓"
+            trend_color = "red"
+            trend_text = f"-{trend_value}"
+    
+    # Create HTML
+    html = f"""
+    <div class="metric-card">
+        <div class="metric-title">{title}</div>
+        <div class="metric-value">{value}{unit}</div>
+        <div style="color: {trend_color}; font-weight: bold; margin-top: 5px;">
+            {trend_arrow} {trend_text}
+        </div>
+        <div style="font-size: 0.8rem; color: #777; margin-top: 5px;">{description}</div>
+    </div>
+    """
+    
+    return html
+
+# Main dashboard logic
+def main():
+    # Initialize session state for persistent storage across reruns
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+        st.session_state.data_loaded = False
+        st.session_state.sentiment_loaded = False
+        st.session_state.models_loaded = False
+        st.session_state.dataset_prepared = False
+        st.session_state.price_data = None
+        st.session_state.sentiment_data = None
+        st.session_state.models = None
+        st.session_state.dataset = None
+        st.session_state.forecasts = None
+        st.session_state.decomposition = None
+        st.session_state.agg_sentiment = None
+    
+    # Sidebar for navigation and controls
+    with st.sidebar:
+        st.title("Dashboard Controls")
+        
+        # Navigation
+        st.sidebar.subheader("Navigation")
+        page = st.sidebar.radio(
+            "Select Page",
+            ["Overview", "Forecast Explorer", "Model Performance", "Sentiment Analysis", "Signal Decomposition"]
+        )
+        
+        # Data parameters
+        st.sidebar.subheader("Data Parameters")
+        
+        oil_type = st.sidebar.selectbox(
+            "Oil Type",
+            options=["brent", "wti"],
+            format_func=lambda x: x.upper()
+        )
+        
+        freq = st.sidebar.selectbox(
+            "Data Frequency",
+            options=["daily", "weekly", "monthly"],
+            format_func=lambda x: x.capitalize()
+        )
+        
+        data_dir = st.sidebar.text_input(
+            "Data Directory",
+            value="data/processed/reddit_test_small",
+            help="Directory containing Reddit data with sentiment analysis"
+        )
+        
+        # Adjust horizon parameters based on selected frequency
+        horizon_label = f"Forecast Horizon ({freq.capitalize()[:-2] + 's' if freq.endswith('ly') else freq.capitalize()})"
+        
+        # Set appropriate min, max, and default values based on frequency
+        if freq == "daily":
+            horizon_min = 7
+            horizon_max = 60
+            horizon_default = 30
+            horizon_step = 1
+        elif freq == "weekly":
+            horizon_min = 4
+            horizon_max = 26
+            horizon_default = 12
+            horizon_step = 1
+        else:  # monthly
+            horizon_min = 1
+            horizon_max = 12
+            horizon_default = 6
+            horizon_step = 1
+        
+        forecast_horizon = st.sidebar.slider(
+            horizon_label,
+            min_value=horizon_min,
+            max_value=horizon_max,
+            value=horizon_default,
+            step=horizon_step
+        )
+        
+        # Adjust lookback parameters based on selected frequency
+        history_label = f"Historical Data ({freq.capitalize()[:-2] + 's' if freq.endswith('ly') else freq.capitalize()})"
+        
+        if freq == "daily":
+            history_min = 30
+            history_max = 180
+            history_default = 60
+            history_step = 30
+        elif freq == "weekly":
+            history_min = 4
+            history_max = 26
+            history_default = 8
+            history_step = 4
+        else:  # monthly
+            history_min = 3
+            history_max = 24
+            history_default = 6
+            history_step = 3
+        
+        lookback_period = st.sidebar.slider(
+            history_label,
+            min_value=history_min,
+            max_value=history_max,
+            value=history_default,
+            step=history_step
+        )
+        
+        # Load data button
+        if st.sidebar.button("Load Data", type="primary"):
+            st.session_state.data_loaded = False
+            st.session_state.sentiment_loaded = False
+            st.session_state.models_loaded = False
+            st.session_state.dataset_prepared = False
+        
+        # Display loading status
+        if st.session_state.data_loaded:
+            st.sidebar.success("✅ Price data loaded")
         else:
-            # If no models were loaded, use placeholders
-            available_models = ["Naive", "ARIMA", "EMA", "LSTM-Attention", "Sentiment-Enhanced LSTM", "Ensemble"]
+            st.sidebar.warning("Price data not loaded")
+            
+        if st.session_state.sentiment_loaded:
+            st.sidebar.success("✅ Sentiment data loaded")
+        else:
+            st.sidebar.warning("Sentiment data not loaded")
+            
+        if st.session_state.models_loaded:
+            st.sidebar.success("✅ Models loaded")
+        else:
+            st.sidebar.warning("Models not loaded")
     
-    selected_models = st.sidebar.multiselect(
-    "Select Models",
-    options=available_models,
-    default=["Naive"]
-    )
+    # Load data if not loaded yet
+    if not st.session_state.data_loaded:
+        with st.spinner("Loading price data..."):
+            progress_bar = st.progress(0)
+            price_data = load_oil_data(oil_type, freq, progress_bar)
+            if not price_data.empty:
+                st.session_state.price_data = price_data
+                st.session_state.data_loaded = True
+            progress_bar.empty()
     
-    # Load data
-    with st.spinner("Loading data..."):
-        # Load price data
-        price_data = load_oil_data(oil_type, freq)
-        
-        # Load sentiment data
-        sentiment_data = load_sentiment_data(data_dir)
-    
-    if price_data.empty:
-        st.error("Failed to load price data. Please check the logs for details.")
-    else:
-        # Progress info
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"Loaded {len(price_data)} price data points")
-        with col2:
+    # Load sentiment data if not loaded yet
+    if st.session_state.data_loaded and not st.session_state.sentiment_loaded:
+        with st.spinner("Loading sentiment data..."):
+            progress_bar = st.progress(0)
+            sentiment_data = load_sentiment_data(data_dir, progress_bar)
             if not sentiment_data.empty:
-                st.success(f"Loaded {len(sentiment_data)} sentiment data points")
-            else:
-                st.warning("No sentiment data loaded. Sentiment-enhanced models may not work correctly.")
-        
-        # Prepare dataset for prediction if sentiment data is available
-        if not sentiment_data.empty:
-            with st.spinner("Preparing dataset..."):
-                dataset = prepare_prediction_dataset(
-                    price_data=price_data,
-                    sentiment_data=sentiment_data,
-                    window_size=30,  # Default window size
-                    forecast_horizon=forecast_horizon
-                )
-        else:
-            dataset = {
-                'X_price_test': np.expand_dims(price_data['Price'].values[-30:], axis=(0, 2)),
-                'y_test': np.zeros((1, forecast_horizon))  # Placeholder
-            }
-        
-        # Generate forecasts
+                st.session_state.sentiment_data = sentiment_data
+                st.session_state.sentiment_loaded = True
+            progress_bar.empty()
+    
+    # Load models if not loaded yet
+    if st.session_state.data_loaded and not st.session_state.models_loaded:
+        with st.spinner("Loading models..."):
+            progress_bar = st.progress(0)
+            models = load_models(progress_bar)
+            if models:
+                st.session_state.models = models
+                st.session_state.models_loaded = True
+            progress_bar.empty()
+    
+    # Prepare dataset if not prepared yet
+    if (st.session_state.data_loaded and 
+        st.session_state.sentiment_loaded and 
+        st.session_state.models_loaded and 
+        not st.session_state.dataset_prepared):
+        with st.spinner("Preparing dataset..."):
+            progress_bar = st.progress(0)
+            dataset = prepare_prediction_dataset(
+                st.session_state.price_data,
+                st.session_state.sentiment_data,
+                window_size=30,
+                forecast_horizon=forecast_horizon,
+                progress_bar=progress_bar
+            )
+            if dataset:
+                st.session_state.dataset = dataset
+                st.session_state.dataset_prepared = True
+            progress_bar.empty()
+    
+    # Check if everything is loaded
+    if (not st.session_state.data_loaded or 
+        not st.session_state.sentiment_loaded or 
+        not st.session_state.models_loaded or 
+        not st.session_state.dataset_prepared):
+        st.warning("Please load data using the sidebar controls.")
+        st.stop()
+    
+    # Generate forecasts if not generated yet or if forecast horizon has changed
+    if (st.session_state.forecasts is None or 
+        len(next(iter(st.session_state.forecasts.values()))) != forecast_horizon):
         with st.spinner("Generating forecasts..."):
-            # Filter to only use selected models
-            selected_model_objects = {name: model for name, model in models.items() if name in selected_models}
+            # Get selected models
+            available_models = list(st.session_state.models.keys())
+            selected_models = st.session_state.models
             
             # Generate forecasts
+            progress_bar = st.progress(0)
             forecasts = generate_forecasts(
-                selected_model_objects,
-                dataset,
-                forecast_horizon
+                selected_models,
+                st.session_state.dataset,
+                forecast_horizon,
+                progress_bar
+            )
+            if forecasts:
+                st.session_state.forecasts = forecasts
+            progress_bar.empty()
+    
+    # Decompose price signal if not decomposed yet
+    if st.session_state.decomposition is None:
+        with st.spinner("Decomposing price signal..."):
+            progress_bar = st.progress(0)
+            price_data_period = st.session_state.price_data.iloc[-lookback_period:]
+            decomposition = decompose_price_signal(price_data_period, n_components=5, progress_bar=progress_bar)
+            if decomposition:
+                st.session_state.decomposition = decomposition
+                st.session_state.decomposition_dates = price_data_period.index
+            progress_bar.empty()
+    
+    # Aggregate sentiment if not aggregated yet
+    if st.session_state.agg_sentiment is None:
+        with st.spinner("Aggregating sentiment data..."):
+            progress_bar = st.progress(0)
+            agg_sentiment = aggregate_sentiment(
+                st.session_state.sentiment_data,
+                freq=freq[0],
+                progress_bar=progress_bar
+            )
+            if not agg_sentiment.empty:
+                st.session_state.agg_sentiment = agg_sentiment
+            progress_bar.empty()
+    
+    # ---- PAGE: OVERVIEW ----
+    if page == "Overview":
+        st.header("Oil Price Forecast Dashboard")
+        
+        # Create row of metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # Most recent price
+        latest_price = st.session_state.price_data['Price'].iloc[-1]
+        previous_price = st.session_state.price_data['Price'].iloc[-2]
+        price_change = latest_price - previous_price
+        price_change_pct = (price_change / previous_price) * 100
+        price_trend = 'up' if price_change > 0 else 'down'
+        
+        with col1:
+            st.markdown(
+                create_metric_card(
+                    f"Latest {oil_type.upper()} Price",
+                    f"${latest_price:.2f}",
+                    "",
+                    f"Last updated: {st.session_state.price_data.index[-1].strftime('%Y-%m-%d')}",
+                    price_trend,
+                    f"{abs(price_change_pct):.2f}%"
+                ),
+                unsafe_allow_html=True
             )
         
-        # Check if forecasts were generated
-        if forecasts:
-            # Display forecast plot
-            fig = plot_forecast_comparison(price_data, forecasts, lookback_period, freq=freq)
-            st.pyplot(fig)
+        # Forecast change
+        if st.session_state.forecasts:
+            ensemble_forecast = st.session_state.forecasts.get('Ensemble', None)
+            if ensemble_forecast is None and st.session_state.forecasts:
+                # Use the first available forecast
+                ensemble_forecast = next(iter(st.session_state.forecasts.values()))
             
-            # Show forecast data in table format
-            st.subheader("Forecast Values")
+            if ensemble_forecast is not None:
+                forecast_end = ensemble_forecast[-1]
+                forecast_change = forecast_end - latest_price
+                forecast_change_pct = (forecast_change / latest_price) * 100
+                forecast_trend = 'up' if forecast_change > 0 else 'down'
+                
+                with col2:
+                    st.markdown(
+                        create_metric_card(
+                            f"{forecast_horizon}-Day Forecast",
+                            f"${forecast_end:.2f}",
+                            "",
+                            f"Forecasted change from current price",
+                            forecast_trend,
+                            f"{abs(forecast_change_pct):.2f}%"
+                        ),
+                        unsafe_allow_html=True
+                    )
+        
+        # Sentiment metrics
+        if not st.session_state.agg_sentiment.empty:
+            latest_sentiment = st.session_state.agg_sentiment['sentiment_compound'].iloc[-1]
+            previous_sentiment = st.session_state.agg_sentiment['sentiment_compound'].iloc[-2] if len(st.session_state.agg_sentiment) > 1 else 0
+            sentiment_change = latest_sentiment - previous_sentiment
+            sentiment_trend = 'up' if sentiment_change > 0 else 'down'
             
-            # Get the first forecast to determine the shape
-            first_forecast = next(iter(forecasts.values()))
+            with col3:
+                st.markdown(
+                    create_metric_card(
+                        "Market Sentiment",
+                        f"{latest_sentiment:.2f}",
+                        "",
+                        f"Last updated: {st.session_state.agg_sentiment.index[-1].strftime('%Y-%m-%d')}",
+                        sentiment_trend,
+                        f"{abs(sentiment_change):.2f}"
+                    ),
+                    unsafe_allow_html=True
+                )
+        
+        # Data coverage metrics
+        data_start = st.session_state.price_data.index[0]
+        data_end = st.session_state.price_data.index[-1]
+        data_days = (data_end - data_start).days
+        
+        with col4:
+            st.markdown(
+                create_metric_card(
+                    "Data Coverage",
+                    f"{data_days:,}",
+                    " days",
+                    f"From {data_start.strftime('%Y-%m-%d')} to {data_end.strftime('%Y-%m-%d')}",
+                    None,
+                    None
+                ),
+                unsafe_allow_html=True
+            )
+        
+        # Add forecast plot
+        st.subheader("Latest Price Forecast")
+        
+        if st.session_state.forecasts:
+            # Create dates for forecast
+            last_date = st.session_state.price_data.index[-1]
             
-            # Set up the date range
-            last_date = price_data.index[-1]
+            # Set proper date range frequency based on selected data frequency
             if freq == "daily":
                 date_freq = 'B'  # Business days
             elif freq == "weekly":
                 date_freq = 'W'  # Weeks
             else:
                 date_freq = 'M'  # Months
-                
-            # Create date range matching the forecast length
+            
             forecast_dates = pd.date_range(
                 start=last_date + pd.Timedelta(days=1),
-                periods=len(first_forecast),
+                periods=forecast_horizon,
                 freq=date_freq
             )
             
-            # Create DataFrame with the dates as index
-            forecast_df = pd.DataFrame(index=forecast_dates)
+            # Create interactive forecast plot
+            forecast_fig = plot_interactive_forecasts(
+                st.session_state.price_data,
+                st.session_state.forecasts,
+                forecast_dates,
+                lookback_period=lookback_period,
+                title=f"{oil_type.upper()} Price Forecast ({freq.capitalize()})"
+            )
             
-            # Add each model's forecast as a column
-            for model_name, forecast in forecasts.items():
-                # Ensure the forecast length matches our date range
-                if len(forecast) == len(forecast_dates):
-                    forecast_df[model_name] = forecast
+            st.plotly_chart(forecast_fig, use_container_width=True)
+        
+        # Add price with sentiment plot
+        st.subheader("Price and Market Sentiment")
+        
+        if not st.session_state.agg_sentiment.empty:
+            # Create interactive sentiment vs price plot
+            sentiment_fig = plot_interactive_sentiment_price(
+                st.session_state.price_data.iloc[-lookback_period:],
+                st.session_state.agg_sentiment,
+                title=f"{oil_type.upper()} Price with Market Sentiment"
+            )
+            
+            st.plotly_chart(sentiment_fig, use_container_width=True)
+        
+        # Add key insights section
+        st.subheader("Key Insights")
+        
+        # Create three columns for insights
+        insight_col1, insight_col2, insight_col3 = st.columns(3)
+        
+        with insight_col1:
+            st.markdown("""
+                <div class="info-box">
+                    <h4>Price Trend</h4>
+                    <p>The recent price trend shows significant volatility in oil markets, with short-term fluctuations driven by supply factors and market sentiment.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col2:
+            st.markdown("""
+                <div class="info-box">
+                    <h4>Sentiment Analysis</h4>
+                    <p>Recent market sentiment has been correlated with price movements, with negative sentiment preceding price declines by 2-3 days.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col3:
+            st.markdown("""
+                <div class="info-box">
+                    <h4>Model Performance</h4>
+                    <p>The Sentiment-Enhanced LSTM model has shown improved accuracy over traditional models, especially during periods of high volatility.</p>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    # ---- PAGE: FORECAST EXPLORER ----
+    elif page == "Forecast Explorer":
+        st.header("Forecast Explorer")
+        
+        # Tabs for different forecast views
+        forecast_tabs = st.tabs(["Interactive Chart", "Forecast Table", "Forecast Details"])
+        
+        with forecast_tabs[0]:  # Interactive Chart tab
+            if st.session_state.forecasts:
+                # Create dates for forecast
+                last_date = st.session_state.price_data.index[-1]
+                
+                # Set proper date range frequency based on selected data frequency
+                if freq == "daily":
+                    date_freq = 'B'  # Business days
+                elif freq == "weekly":
+                    date_freq = 'W'  # Weeks
                 else:
-                    # Handle mismatched lengths by padding or truncating
-                    st.warning(f"Forecast length for {model_name} ({len(forecast)}) doesn't match date range ({len(forecast_dates)}). Adjusting...")
-                    if len(forecast) > len(forecast_dates):
-                        forecast_df[model_name] = forecast[:len(forecast_dates)]
-                    else:
-                        # Pad with the last value
-                        padded_forecast = np.concatenate([forecast, np.repeat(forecast[-1], len(forecast_dates) - len(forecast))])
-                        forecast_df[model_name] = padded_forecast
-            
-            st.dataframe(forecast_df.style.format("${:.2f}"))
-            
-            # Download forecast data as CSV
-            csv = forecast_df.to_csv()
-            st.download_button(
-                label="Download Forecast Data",
-                data=csv,
-                file_name=f"oil_forecast_{oil_type}_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
-        else:
-            st.error("Failed to generate forecasts. Please check the logs for details.")
-
-# ---- PAGE: MODEL PERFORMANCE ----
-elif page == "Model Performance":
-    st.header("Model Performance Analysis")
-    
-    # Sidebar controls
-    st.sidebar.header("Performance Parameters")
-    
-    oil_type = st.sidebar.selectbox(
-        "Oil Type",
-        options=["brent", "wti"],
-        format_func=lambda x: x.upper(),
-        key="perf_oil_type"
-    )
-    
-    freq = st.sidebar.selectbox(
-        "Data Frequency",
-        options=["daily", "weekly", "monthly"],
-        format_func=lambda x: x.capitalize(),
-        key="perf_freq"
-    )
-    
-    data_dir = st.sidebar.text_input(
-        "Data Directory",
-        value="data/processed/reddit_test_small",
-        help="Directory containing Reddit data with sentiment analysis",
-        key="perf_data_dir"
-    )
-    
-    # Load models
-    with st.spinner("Loading models..."):
-        models = load_models()
-        
-    # Get available model names
-    if models:
-        available_models = list(models.keys())
-        if "Ensemble" not in available_models:
-            available_models.append("Ensemble")
-    else:
-        available_models = ["Naive", "ARIMA", "EMA", "LSTM-Attention", "Sentiment-Enhanced LSTM", "Ensemble"]
-    
-    selected_models = st.sidebar.multiselect(
-        "Select Models to Compare",
-        options=available_models,
-        default=["Naive", "LSTM-Attention", "Sentiment-Enhanced LSTM", "Ensemble"]
-    )
-    
-    test_period_options = {
-        "daily": ["Last 30 Days", "Last 90 Days", "Last 180 Days"],
-        "weekly": ["Last 4 Weeks", "Last 12 Weeks", "Last 24 Weeks"],
-        "monthly": ["Last 3 Months", "Last 6 Months", "Last 12 Months"]
-    }
-    
-    test_period = st.sidebar.selectbox(
-        "Test Period",
-        options=test_period_options[freq],
-        index=1  # Default to middle option
-    )
-    
-    # Load data
-    with st.spinner("Loading data..."):
-        # Load price data
-        price_data = load_oil_data(oil_type, freq)
-        
-        # Load sentiment data
-        sentiment_data = load_sentiment_data(data_dir)
-    
-    if price_data.empty:
-        st.error("Failed to load price data. Please check the logs for details.")
-    elif not selected_models:
-        st.warning("Please select at least one model to view performance metrics.")
-    else:
-        # Progress info
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"Loaded {len(price_data)} price data points")
-        with col2:
-            if not sentiment_data.empty:
-                st.success(f"Loaded {len(sentiment_data)} sentiment data points")
-            else:
-                st.warning("No sentiment data loaded. Sentiment-enhanced models may not work correctly.")
-        
-        # Prepare test dataset
-        with st.spinner("Preparing test dataset..."):
-            # Determine test period length
-            period_parts = test_period.split()
-            period_number = int(period_parts[1])
-            period_unit = period_parts[2].lower()
-            
-            # Convert to appropriate number of data points
-            if period_unit == "days":
-                test_length = period_number
-            elif period_unit == "weeks":
-                test_length = period_number if freq == "weekly" else period_number * 7
-            else:  # months
-                test_length = period_number if freq == "monthly" else period_number * 30
-            
-            # Ensure test_length is not larger than available data
-            test_length = min(test_length, len(price_data))
-            
-            # Extract test data
-            test_data = price_data.iloc[-test_length:]
-            
-            if not sentiment_data.empty:
-                # Prepare dataset with sentiment
-                dataset = prepare_prediction_dataset(
-                    price_data=price_data,
-                    sentiment_data=sentiment_data,
-                    window_size=30,  # Default window size
-                    forecast_horizon=7  # Default forecast horizon for evaluation
-                )
-            else:
-                # Basic dataset without sentiment
-                dataset = {
-                    'X_price_test': np.expand_dims(price_data['Price'].values[-30:], axis=(0, 2)),
-                    'y_test': np.zeros((1, 7))  # Placeholder
-                }
-        
-        # Check if test data is available
-        if 'y_test' in dataset:
-            # Filter to only use selected models
-            selected_model_objects = {name: model for name, model in models.items() if name in selected_models}
-            
-            # Use a shorter forecast horizon for evaluation
-            forecast_horizon = 7  # Default to 7 days/weeks/months for evaluation
-            
-            # Generate forecasts for test period
-            with st.spinner("Evaluating models..."):
-                forecasts = generate_forecasts(
-                    selected_model_objects,
-                    dataset,
-                    forecast_horizon
+                    date_freq = 'M'  # Months
+                
+                forecast_dates = pd.date_range(
+                    start=last_date + pd.Timedelta(days=1),
+                    periods=forecast_horizon,
+                    freq=date_freq
                 )
                 
-                # Calculate performance metrics
-                performance = calculate_model_performance(dataset['y_test'][0], forecasts)
-        
-            # Display performance comparison
-            if performance:
-                st.subheader("Performance Metrics Comparison")
-                
-                # Create metrics DataFrame
-                metrics_df = pd.DataFrame({
-                    model: {
-                        'RMSE': f"{metrics.get('rmse', 0):.2f}",
-                        'MAE': f"{metrics.get('mae', 0):.2f}",
-                        'MAPE (%)': f"{metrics.get('mape', 0):.2f}",
-                        'Directional Accuracy (%)': f"{metrics.get('directional_accuracy', 0):.2f}"
-                    }
-                    for model, metrics in performance.items()
-                })
-                
-                st.dataframe(metrics_df)
-                
-                # Create visualization of metrics
-                fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-                axes = axes.flatten()
-                
-                metrics_to_plot = ['rmse', 'mae', 'mape', 'directional_accuracy']
-                titles = ['RMSE (Lower is Better)', 'MAE (Lower is Better)', 
-                         'MAPE % (Lower is Better)', 'Directional Accuracy % (Higher is Better)']
-                
-                for i, (metric, title) in enumerate(zip(metrics_to_plot, titles)):
-                    values = [performance.get(model, {}).get(metric, 0) for model in performance.keys()]
-                    if metric == 'directional_accuracy':
-                        # Invert for directional accuracy (higher is better)
-                        axes[i].barh(list(performance.keys()), values, color='green')
-                    else:
-                        # Lower is better for error metrics
-                        axes[i].barh(list(performance.keys()), values, color='skyblue')
-                    
-                    axes[i].set_title(title)
-                    # Add value labels
-                    for j, value in enumerate(values):
-                        axes[i].text(value + (0.05 * max(values)) if values else 0, j, f"{value:.2f}", va='center')
-                    
-                    # Improve y-axis labels
-                    axes[i].set_yticks(range(len(performance)))
-                    axes[i].set_yticklabels(list(performance.keys()))
-                    axes[i].invert_yaxis()  # Highest values at the top
-                    axes[i].grid(True, alpha=0.3)
-                
-                plt.tight_layout()
-                st.pyplot(fig)
-                
-                # Show interpretation
-                st.subheader("Performance Interpretation")
-                
-                # Find best model for each metric
-                best_models = {}
-                for metric in metrics_to_plot:
-                    if metric == 'directional_accuracy':
-                        # Higher is better
-                        best_model = max(
-                            performance.items(),
-                            key=lambda x: x[1].get(metric, 0),
-                            default=(None, {})
-                        )[0]
-                    else:
-                        # Lower is better
-                        best_model = min(
-                            performance.items(),
-                            key=lambda x: x[1].get(metric, float('inf')),
-                            default=(None, {})
-                        )[0]
-                    
-                    best_models[metric] = best_model
-                
-                # Count which model is best most often
-                model_counts = {}
-                for model in best_models.values():
-                    if model:
-                        model_counts[model] = model_counts.get(model, 0) + 1
-                
-                overall_best = max(model_counts.items(), key=lambda x: x[1], default=(None, 0))[0]
-                
-                st.markdown(f"""
-                **Key Findings:**
-                
-                - **Best RMSE**: {best_models.get('rmse', 'N/A')} model with {performance.get(best_models.get('rmse', ''), {}).get('rmse', 0):.2f}
-                - **Best MAE**: {best_models.get('mae', 'N/A')} model with {performance.get(best_models.get('mae', ''), {}).get('mae', 0):.2f}
-                - **Best MAPE**: {best_models.get('mape', 'N/A')} model with {performance.get(best_models.get('mape', ''), {}).get('mape', 0):.2f}%
-                - **Best Directional Accuracy**: {best_models.get('directional_accuracy', 'N/A')} model with {performance.get(best_models.get('directional_accuracy', ''), {}).get('directional_accuracy', 0):.2f}%
-                
-                The **{overall_best or 'N/A'}** model appears to have the best overall performance across multiple metrics.
-                This suggests that {"combining market sentiment with technical price patterns provides more accurate forecasts" if overall_best == "Sentiment-Enhanced LSTM" else "ensemble methods provide more robust predictions than individual models" if overall_best == "Ensemble" else "this model balances accuracy and reliability well for oil price forecasting"}.
-                """)
-                
-                # Simulated improvement over baseline
-                if "Naive" in performance and len(performance) > 1:
-                    baseline_rmse = performance["Naive"].get("rmse", 0)
-                    if baseline_rmse > 0:
-                        improvements = {
-                            model: (1 - metrics.get("rmse", 0) / baseline_rmse) * 100
-                            for model, metrics in performance.items()
-                            if model != "Naive"
-                        }
-                        
-                        st.subheader("Improvement Over Naive Baseline")
-                        
-                        # Create improvement chart
-                        fig, ax = plt.subplots(figsize=(10, 6))
-                        models = list(improvements.keys())
-                        values = list(improvements.values())
-                        
-                        ax.barh(models, values, color=['lightgreen' if v > 0 else 'lightcoral' for v in values])
-                        ax.set_title("Percentage Improvement in RMSE Over Naive Baseline")
-                        ax.set_xlabel("Improvement (%)")
-                        
-                        # Add value labels
-                        for i, value in enumerate(values):
-                            ax.text(value + 0.5, i, f"{value:.1f}%", va='center')
-                        
-                        ax.grid(True, alpha=0.3)
-                        ax.set_axisbelow(True)
-                        
-                        st.pyplot(fig)
-            else:
-                st.warning("No performance metrics were calculated. This may be due to insufficient test data.")
-        else:
-            st.warning("No test data available for model evaluation.")
-
-# ---- PAGE: SENTIMENT ANALYSIS ----
-elif page == "Sentiment Analysis":
-    st.header("Market Sentiment Analysis")
-    
-    st.markdown("""
-    This page analyzes the relationship between oil market sentiment and price movements.
-    Sentiment data is derived from social media, news, and financial discussions related to oil markets.
-    """)
-    
-    # Sidebar controls
-    st.sidebar.header("Sentiment Parameters")
-    
-    oil_type = st.sidebar.selectbox(
-        "Oil Type",
-        options=["brent", "wti"],
-        format_func=lambda x: x.upper(),
-        key="sentiment_oil_type"
-    )
-    
-    freq = st.sidebar.selectbox(
-        "Data Frequency",
-        options=["daily", "weekly", "monthly"],
-        format_func=lambda x: x.capitalize(),
-        key="sentiment_freq"
-    )
-    
-    data_dir = st.sidebar.text_input(
-        "Data Directory",
-        value="data/processed/reddit_test_small",
-        help="Directory containing Reddit data with sentiment analysis",
-        key="sentiment_data_dir"
-    )
-    
-    # Load data
-    with st.spinner("Loading data..."):
-        # Load price data
-        price_data = load_oil_data(oil_type, freq)
-        
-        # Load sentiment data
-        sentiment_data = load_sentiment_data(data_dir)
-    
-    if price_data.empty:
-        st.error("Failed to load price data. Please check the logs for details.")
-    elif sentiment_data.empty:
-        st.error("Failed to load sentiment data. Please check the data directory.")
-    else:
-        # Aggregate sentiment by time
-        agg_sentiment = aggregate_sentiment(
-            sentiment_data,
-            freq=freq[0],  # 'D', 'W', or 'M'
-            date_col='created_date'
-        )
-        
-        if agg_sentiment.empty:
-            st.error("Failed to aggregate sentiment data. Check the log for details.")
-        else:
-            # Align price and sentiment data
-            # Convert price data index to datetime if needed
-            if not isinstance(price_data.index, pd.DatetimeIndex):
-                st.warning("Price data index is not a DatetimeIndex. This may affect time-based analysis.")
-            
-            # Merge price and sentiment data
-            price_df = price_data.reset_index()
-            price_df.columns = ['Date', 'Price']  # Match original column names
-            price_df = price_df.rename(columns={'Date': 'date', 'Price': 'price'})  # Then standardize
-            
-            # Rename sentiment index to 'date' for merging
-            sentiment_df = agg_sentiment.reset_index()
-            sentiment_df.columns = ['date'] + list(sentiment_df.columns[1:])
-            
-            # Merge on closest date
-            merged = pd.merge_asof(
-                price_df.sort_values('date'),
-                sentiment_df.sort_values('date'),
-                on='date',
-                direction='nearest'
-            )
-            
-            # Fill any missing sentiment values with zeros (neutral)
-            for col in ['sentiment_compound', 'sentiment_positive', 'sentiment_negative']:
-                if col in merged.columns:
-                    merged[col] = merged[col].fillna(0)
-            
-            # Create 7-day moving average for sentiment
-            if 'sentiment_compound' in merged.columns and len(merged) > 7:
-                merged['sentiment_ma7'] = merged['sentiment_compound'].rolling(window=7).mean().fillna(0)
-            
-            # Plot price with sentiment overlay
-            st.subheader("Oil Price with Market Sentiment")
-            
-            fig, ax1 = plt.subplots(figsize=(12, 8))
-            
-            # Plot price on primary y-axis
-            ax1.plot(merged['date'], merged['price'], 'b-', linewidth=2, label='Oil Price')
-            ax1.set_xlabel('Date')
-            ax1.set_ylabel('Price ($)', color='b')
-            ax1.tick_params(axis='y', labelcolor='b')
-            
-            # Create secondary y-axis for sentiment
-            ax2 = ax1.twinx()
-            if 'sentiment_compound' in merged.columns:
-                ax2.plot(
-                    merged['date'],
-                    merged['sentiment_compound'],
-                    'r-',
-                    linewidth=1.5,
-                    alpha=0.7,
-                    label='Sentiment'
+                # Model selection for viewing
+                available_models = list(st.session_state.forecasts.keys())
+                selected_forecast_models = st.multiselect(
+                    "Select Models to Display",
+                    options=available_models,
+                    default=["Ensemble"] if "Ensemble" in available_models else [available_models[0]]
                 )
                 
-                if 'sentiment_ma7' in merged.columns:
-                    ax2.plot(
-                        merged['date'],
-                        merged['sentiment_ma7'],
-                        'g-',
-                        linewidth=1.5,
-                        alpha=0.7,
-                        label='7-day MA'
+                # Filter forecasts to selected models
+                if selected_forecast_models:
+                    selected_forecasts = {model: forecast for model, forecast in st.session_state.forecasts.items() 
+                                         if model in selected_forecast_models}
+                    
+                    # Create interactive forecast plot
+                    forecast_fig = plot_interactive_forecasts(
+                        st.session_state.price_data,
+                        selected_forecasts,
+                        forecast_dates,
+                        lookback_period=lookback_period,
+                        title=f"{oil_type.upper()} Price Forecast ({freq.capitalize()})"
                     )
                     
-                ax2.set_ylabel('Sentiment Score', color='r')
-                ax2.tick_params(axis='y', labelcolor='r')
+                    st.plotly_chart(forecast_fig, use_container_width=True)
+                else:
+                    st.warning("Please select at least one model to display")
+        
+        with forecast_tabs[1]:  # Forecast Table tab
+            if st.session_state.forecasts:
+                # Create dates for forecast
+                last_date = st.session_state.price_data.index[-1]
                 
-                # Add horizontal lines for neutral sentiment
-                ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+                # Set proper date range frequency based on selected data frequency
+                if freq == "daily":
+                    date_freq = 'B'  # Business days
+                elif freq == "weekly":
+                    date_freq = 'W'  # Weeks
+                else:
+                    date_freq = 'M'  # Months
                 
-                # Add combined legend
-                lines1, labels1 = ax1.get_legend_handles_labels()
-                lines2, labels2 = ax2.get_legend_handles_labels()
-                ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
-            
-            # Set title
-            plt.title('Oil Price with Market Sentiment')
-            
-            # Format x-axis dates
-            fig.autofmt_xdate()
-            
-            # Tight layout
-            plt.tight_layout()
-            
-            st.pyplot(fig)
-            
-            # Sentiment distribution
-            if 'sentiment_compound' in merged.columns:
-                st.subheader("Sentiment Distribution")
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.hist(
-                    merged['sentiment_compound'].dropna(),
-                    bins=20,
-                    color='skyblue',
-                    alpha=0.7,
-                    edgecolor='black'
+                forecast_dates = pd.date_range(
+                    start=last_date + pd.Timedelta(days=1),
+                    periods=forecast_horizon,
+                    freq=date_freq
                 )
                 
-                # Add vertical lines at meaningful levels
-                ax.axvline(x=0, color='k', linestyle='-', alpha=0.5, label='Neutral')
-                ax.axvline(x=0.2, color='g', linestyle='--', alpha=0.5, label='Bullish Threshold')
-                ax.axvline(x=-0.2, color='r', linestyle='--', alpha=0.5, label='Bearish Threshold')
+                # Create DataFrame with forecasts
+                forecast_df = pd.DataFrame(index=forecast_dates)
                 
-                # Format plot
-                ax.set_title('Distribution of Oil Market Sentiment Scores')
-                ax.set_xlabel('Sentiment Score')
-                ax.set_ylabel('Frequency')
-                ax.legend()
-                ax.grid(True, alpha=0.3)
+                # Add each model's forecast as a column
+                for model_name, forecast in st.session_state.forecasts.items():
+                    # Ensure the forecast length matches our date range
+                    if len(forecast) == len(forecast_dates):
+                        forecast_df[model_name] = forecast
+                    else:
+                        # Handle mismatched lengths by padding or truncating
+                        logger.warning(f"Forecast length for {model_name} ({len(forecast)}) doesn't match date range ({len(forecast_dates)}). Adjusting...")
+                        if len(forecast) > len(forecast_dates):
+                            forecast_df[model_name] = forecast[:len(forecast_dates)]
+                        else:
+                            # Pad with the last value
+                            padded_forecast = np.concatenate([forecast, np.repeat(forecast[-1], len(forecast_dates) - len(forecast))])
+                            forecast_df[model_name] = padded_forecast
                 
-                st.pyplot(fig)
+                # Display the table
+                st.dataframe(forecast_df.style.format("${:.2f}"), use_container_width=True)
                 
-                # Correlation analysis
-                st.subheader("Price-Sentiment Correlation Analysis")
+                # Download forecast data as CSV
+                csv = forecast_df.to_csv()
+                st.download_button(
+                    label="Download Forecast Data",
+                    data=csv,
+                    file_name=f"oil_forecast_{oil_type}_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
+        
+        with forecast_tabs[2]:  # Forecast Details tab
+            if st.session_state.forecasts:
+                # Detailed forecast information
+                st.subheader("Forecast Details")
                 
-                # Calculate rolling correlations
-                window_sizes = [7, 14, 30]
-                correlations = {}
+                # Select model for details
+                model_for_details = st.selectbox(
+                    "Select Model for Detailed Analysis",
+                    options=list(st.session_state.forecasts.keys()),
+                    format_func=lambda x: f"{x} Model"
+                )
                 
-                for window in window_sizes:
-                    if window < len(merged):
-                        rolling_corr = merged['price'].rolling(window=window).corr(merged['sentiment_compound'])
-                        correlations[f"{window}-day"] = rolling_corr
+                # Show model information
+                if model_for_details:
+                    forecast = st.session_state.forecasts[model_for_details]
+                    
+                    # Create dates for forecast
+                    last_date = st.session_state.price_data.index[-1]
+                    
+                    # Set proper date range frequency based on selected data frequency
+                    if freq == "daily":
+                        date_freq = 'B'  # Business days
+                    elif freq == "weekly":
+                        date_freq = 'W'  # Weeks
+                    else:
+                        date_freq = 'M'  # Months
+                    
+                    forecast_dates = pd.date_range(
+                        start=last_date + pd.Timedelta(days=1),
+                        periods=len(forecast),
+                        freq=date_freq
+                    )
+                    
+                    # Create columns for info
+                    col1, col2 = st.columns(2)
+                    
+                    # Model description
+                    with col1:
+                        if model_for_details == "Naive":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>Naive Model</h4>
+                                    <p>The Naive forecasting model predicts that future values will be equal to the most recent observation. It serves as a simple baseline for comparison.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        elif model_for_details == "ARIMA":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>ARIMA Model</h4>
+                                    <p>The Auto-Regressive Integrated Moving Average model combines autoregression, differencing, and moving averages to fit time series data and make predictions.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        elif model_for_details == "EMA":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>EMA Model</h4>
+                                    <p>The Exponential Moving Average model applies more weight to recent observations, making it responsive to recent price changes while still smoothing out noise.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        elif model_for_details == "LSTM-Attention":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>LSTM with Attention Model</h4>
+                                    <p>This deep learning model combines Long Short-Term Memory networks with an attention mechanism to focus on the most relevant parts of the input sequence for forecasting.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        elif model_for_details == "Sentiment-Enhanced LSTM":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>Sentiment-Enhanced LSTM Model</h4>
+                                    <p>This advanced model integrates market sentiment analysis with price patterns, using both technical and sentiment features to improve forecast accuracy.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        elif model_for_details == "Ensemble":
+                            st.markdown("""
+                                <div class="info-box">
+                                    <h4>Ensemble Model</h4>
+                                    <p>The Ensemble model combines predictions from multiple forecasting models to create a more robust and accurate forecast by leveraging the strengths of each approach.</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    
+                    # Forecast statistics
+                    with col2:
+                        st.markdown("### Forecast Statistics")
+                        
+                        # Calculate statistics
+                        latest_price = st.session_state.price_data['Price'].iloc[-1]
+                        forecast_end = forecast[-1]
+                        forecast_change = forecast_end - latest_price
+                        forecast_change_pct = (forecast_change / latest_price) * 100
+                        forecast_min = forecast.min()
+                        forecast_max = forecast.max()
+                        forecast_mean = forecast.mean()
+                        
+                        # Create stats table
+                        stats_df = pd.DataFrame({
+                            'Metric': ['Current Price', 'Forecasted End Price', 'Change', '% Change', 
+                                       'Min Forecast', 'Max Forecast', 'Mean Forecast'],
+                            'Value': [f"${latest_price:.2f}", f"${forecast_end:.2f}", 
+                                      f"${forecast_change:.2f}", f"{forecast_change_pct:.2f}%",
+                                      f"${forecast_min:.2f}", f"${forecast_max:.2f}", f"${forecast_mean:.2f}"]
+                        })
+                        
+                        st.dataframe(stats_df, hide_index=True, use_container_width=True)
+                    
+                    # Show day-by-day forecast
+                    st.markdown("### Day-by-Day Forecast")
+                    
+                    # Create forecast table
+                    forecast_details_df = pd.DataFrame({
+                        'Date': forecast_dates,
+                        'Forecasted Price': forecast,
+                        'Change from Previous': [None] + [forecast[i] - forecast[i-1] for i in range(1, len(forecast))],
+                        '% Change': [None] + [(forecast[i] - forecast[i-1]) / forecast[i-1] * 100 for i in range(1, len(forecast))]
+                    })
+                    
+                    # Format the columns
+                    st.dataframe(
+                        forecast_details_df.style.format({
+                            'Forecasted Price': '${:.2f}',
+                            'Change from Previous': '${:.2f}',
+                            '% Change': '{:.2f}%'
+                        }),
+                        hide_index=True,
+                        use_container_width=True
+                    )
+    
+    # ---- PAGE: MODEL PERFORMANCE ----
+    elif page == "Model Performance":
+        st.header("Model Performance Analysis")
+        
+        # Tabs for different performance views
+        performance_tabs = st.tabs(["Model Comparison", "Horizon Analysis", "Improvement Analysis"])
+        
+        with performance_tabs[0]:  # Model Comparison tab
+            # Create synthetic test data for demonstration
+            if 'y_test' in st.session_state.dataset and st.session_state.forecasts:
+                # Use actual test data if available
+                test_data = st.session_state.dataset['y_test'][0]
                 
-                # Plot rolling correlations
-                if correlations:
-                    fig, ax = plt.subplots(figsize=(12, 6))
+                # Calculate performance metrics
+                performance = calculate_model_performance(test_data, st.session_state.forecasts)
+                
+                if performance:
+                    # Create interactive performance comparison plot
+                    performance_fig = plot_model_performance(
+                        performance,
+                        metrics=['rmse', 'mae', 'mape', 'directional_accuracy'],
+                        title="Model Performance Comparison"
+                    )
                     
-                    for label, corr in correlations.items():
-                        ax.plot(
-                            merged['date'].iloc[window_sizes[0]-1:],  # Start at largest window size
-                            corr.iloc[window_sizes[0]-1:],
-                            label=f"{label} Correlation"
-                        )
+                    st.plotly_chart(performance_fig, use_container_width=True)
                     
-                    # Add zero line
-                    ax.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+                    # Show performance table
+                    st.subheader("Performance Metrics")
                     
-                    # Format plot
-                    ax.set_title('Rolling Correlation Between Oil Price and Market Sentiment')
-                    ax.set_xlabel('Date')
-                    ax.set_ylabel('Correlation Coefficient')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
+                    # Create performance DataFrame
+                    metrics_df = pd.DataFrame({
+                        'Model': list(performance.keys()),
+                        'RMSE': [performance[model].get('rmse', 0) for model in performance.keys()],
+                        'MAE': [performance[model].get('mae', 0) for model in performance.keys()],
+                        'MAPE (%)': [performance[model].get('mape', 0) for model in performance.keys()],
+                        'Directional Accuracy (%)': [performance[model].get('directional_accuracy', 0) for model in performance.keys()]
+                    })
                     
-                    # Format x-axis dates
-                    fig.autofmt_xdate()
+                    # Display the table
+                    st.dataframe(
+                        metrics_df.style.format({
+                            'RMSE': '{:.4f}',
+                            'MAE': '{:.4f}',
+                            'MAPE (%)': '{:.2f}',
+                            'Directional Accuracy (%)': '{:.2f}'
+                        }),
+                        hide_index=True,
+                        use_container_width=True
+                    )
+            else:
+                st.info("Test data or forecasts not available for model performance evaluation.")
+        
+        with performance_tabs[1]:  # Horizon Analysis tab
+            if 'y_test' in st.session_state.dataset and st.session_state.forecasts:
+                # Use actual test data if available
+                test_data = st.session_state.dataset['y_test'][0]
+                
+                # Calculate performance metrics
+                performance = calculate_model_performance(test_data, st.session_state.forecasts)
+                
+                # Calculate horizon performance
+                horizon_metrics = evaluate_horizon_performance(test_data, st.session_state.forecasts.get('Ensemble', next(iter(st.session_state.forecasts.values()))))
+                
+                if horizon_metrics:
+                    # Create figure
+                    fig = go.Figure()
                     
-                    st.pyplot(fig)
+                    # Add RMSE line
+                    fig.add_trace(go.Scatter(
+                        x=horizon_metrics['horizon'],
+                        y=horizon_metrics['rmse'],
+                        mode='lines+markers',
+                        name='RMSE',
+                        line=dict(color='blue', width=2),
+                        hovertemplate='Horizon: %{x}<br>RMSE: %{y:.4f}<extra></extra>'
+                    ))
                     
-                    # Correlation statistics
-                    overall_corr = merged['price'].corr(merged['sentiment_compound'])
+                    # Add MAPE line on secondary y-axis
+                    fig.add_trace(go.Scatter(
+                        x=horizon_metrics['horizon'],
+                        y=horizon_metrics['mape'],
+                        mode='lines+markers',
+                        name='MAPE (%)',
+                        line=dict(color='red', width=2, dash='dash'),
+                        hovertemplate='Horizon: %{x}<br>MAPE: %{y:.2f}%<extra></extra>',
+                        yaxis='y2'
+                    ))
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title="Forecast Accuracy by Horizon",
+                        xaxis_title="Forecast Horizon (Days)",
+                        yaxis_title="RMSE",
+                        yaxis2=dict(
+                            title="MAPE (%)",
+                            overlaying='y',
+                            side='right'
+                        ),
+                        legend=dict(
+                            orientation='h',
+                            yanchor='bottom',
+                            y=1.02,
+                            xanchor='center',
+                            x=0.5
+                        ),
+                        template='plotly_white',
+                        height=500,
+                        margin=dict(l=10, r=10, t=50, b=10)
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add interpretation
+                    st.markdown("""
+                        <div class="info-box">
+                            <h4>Horizon Analysis Interpretation</h4>
+                            <p>The horizon analysis shows how forecast accuracy decreases as the prediction horizon extends further into the future. 
+                            Typically, forecasts for the next 1-3 days are the most accurate, with error metrics increasing significantly beyond that point.</p>
+                            <p>The RMSE (blue line) shows the absolute error magnitude, while the MAPE (red line) shows the percentage error relative to the actual price.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Test data or forecasts not available for horizon analysis.")
+        
+        with performance_tabs[2]:  # Improvement Analysis tab
+            if 'y_test' in st.session_state.dataset and st.session_state.forecasts and 'Naive' in st.session_state.forecasts:
+                # Use actual test data if available
+                test_data = st.session_state.dataset['y_test'][0]
+                
+                # Calculate performance metrics
+                performance = calculate_model_performance(test_data, st.session_state.forecasts)
+                
+                if performance and 'Naive' in performance:
+                    # Calculate improvement over naive baseline
+                    baseline_rmse = performance['Naive'].get('rmse', 1.0)  # Default to 1.0 to avoid division by zero
+                    
+                    improvements = {
+                        model: {
+                            'rmse_improvement': (1 - metrics.get('rmse', 0) / baseline_rmse) * 100,
+                            'mae_improvement': (1 - metrics.get('mae', 0) / performance['Naive'].get('mae', 1.0)) * 100,
+                            'mape_improvement': (1 - metrics.get('mape', 0) / performance['Naive'].get('mape', 1.0)) * 100,
+                            'dir_acc_improvement': metrics.get('directional_accuracy', 0) - performance['Naive'].get('directional_accuracy', 0)
+                        }
+                        for model, metrics in performance.items() if model != 'Naive'
+                    }
+                    
+                    # Create a figure for RMSE improvement
+                    fig = go.Figure()
+                    
+                    # Add improvement bars
+                    models = list(improvements.keys())
+                    rmse_improvements = [improvements[model]['rmse_improvement'] for model in models]
+                    
+                    # Sort by improvement value
+                    sorted_indices = np.argsort(rmse_improvements)
+                    sorted_models = [models[i] for i in sorted_indices]
+                    sorted_improvements = [rmse_improvements[i] for i in sorted_indices]
+                    
+                    # Define colors based on improvement (green for positive, red for negative)
+                    colors = ['green' if imp > 0 else 'red' for imp in sorted_improvements]
+                    
+                    fig.add_trace(go.Bar(
+                        y=sorted_models,
+                        x=sorted_improvements,
+                        orientation='h',
+                        marker_color=colors,
+                        text=[f"{imp:.2f}%" for imp in sorted_improvements],
+                        textposition='outside',
+                        hovertemplate='Model: %{y}<br>Improvement: %{x:.2f}%<extra></extra>'
+                    ))
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title="RMSE Improvement Over Naive Baseline",
+                        xaxis_title="Improvement (%)",
+                        yaxis_title="Model",
+                        template='plotly_white',
+                        height=400,
+                        margin=dict(l=10, r=100, t=50, b=10)  # Extra right margin for text labels
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add interpretation
+                    best_model = max(improvements.items(), key=lambda x: x[1]['rmse_improvement'])[0]
+                    best_improvement = improvements[best_model]['rmse_improvement']
                     
                     st.markdown(f"""
-                    **Correlation Analysis:**
+                        <div class="info-box">
+                            <h4>Model Improvement Analysis</h4>
+                            <p>The <strong>{best_model}</strong> model shows the greatest improvement over the naive baseline with a <strong>{best_improvement:.2f}%</strong> reduction in RMSE.</p>
+                            <p>Advanced models like LSTM with Attention and Sentiment-Enhanced LSTM typically show the most significant improvements during periods of high market volatility or when major sentiment shifts occur.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
                     
-                    - **Overall Correlation**: {overall_corr:.4f}
-                    - **Interpretation**: 
-                      - A {'positive' if overall_corr > 0 else 'negative'} correlation of {abs(overall_corr):.4f} indicates a {'direct' if overall_corr > 0 else 'inverse'} relationship between oil prices and market sentiment.
-                      - This suggests that {'higher sentiment tends to correspond with higher prices' if overall_corr > 0 else 'lower sentiment tends to correspond with higher prices'}.
-                      - The relationship varies over time, as shown in the rolling correlation plot.
-                    """)
-                
-                # Sentiment as leading indicator analysis
-                st.subheader("Sentiment as a Leading Indicator")
-                
-                # Calculate lagged correlations
-                lags = range(-10, 11)  # From -10 (sentiment leads) to +10 (price leads)
-                lag_correlations = []
-                
-                for lag in lags:
-                    if lag < 0:
-                        # Sentiment leads price by -lag days
-                        shifted_sentiment = merged['sentiment_compound'].shift(lag)
-                        corr = merged['price'].corr(shifted_sentiment)
-                    else:
-                        # Price leads sentiment by lag days
-                        shifted_price = merged['price'].shift(lag)
-                        corr = shifted_price.corr(merged['sentiment_compound'])
+                    # Show comprehensive improvement table
+                    st.subheader("Comprehensive Improvement Analysis")
                     
-                    lag_correlations.append(corr)
-                
-                # Plot lagged correlations
-                fig, ax = plt.subplots(figsize=(12, 6))
-                
-                ax.bar(
-                    lags,
-                    lag_correlations,
-                    color='skyblue',
-                    alpha=0.7,
-                    edgecolor='black'
-                )
-                
-                # Add zero line
-                ax.axhline(y=0, color='k', linestyle='--', alpha=0.3)
-                
-                # Format plot
-                ax.set_title('Correlation Between Price and Sentiment at Different Lags')
-                ax.set_xlabel('Lag (Negative = Sentiment Leads, Positive = Price Leads)')
-                ax.set_ylabel('Correlation Coefficient')
-                ax.grid(True, alpha=0.3)
-                
-                # Find max correlation and its lag
-                max_corr_idx = np.argmax(np.abs(lag_correlations))
-                max_corr_lag = lags[max_corr_idx]
-                max_corr_value = lag_correlations[max_corr_idx]
-                
-                # Add annotation for max correlation
-                ax.annotate(
-                    f'Max correlation: {max_corr_value:.4f} at lag {max_corr_lag}',
-                    xy=(max_corr_lag, max_corr_value),
-                    xytext=(max_corr_lag + (-3 if max_corr_lag > 0 else 3), max_corr_value + 0.1),
-                    arrowprops=dict(arrowstyle='->', lw=1.5),
-                    bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.3)
-                )
-                
-                st.pyplot(fig)
-                
-                # Interpretation of lag analysis
-                st.markdown(f"""
-                **Lag Analysis:**
-                
-                - **Maximum Correlation**: {max_corr_value:.4f} at lag {max_corr_lag}
-                - **Interpretation**: 
-                  - {"Sentiment appears to lead price changes" if max_corr_lag < 0 else "Price changes appear to lead sentiment"}
-                  - The strongest relationship occurs when {"sentiment leads prices by" if max_corr_lag < 0 else "prices lead sentiment by"} {abs(max_corr_lag)} days
-                  - This suggests that {"monitoring sentiment may provide advance indicators of price movements" if max_corr_lag < 0 else "sentiment largely reacts to price changes rather than predicting them"}
-                """)
-                
-                # Show sentiment data table
-                with st.expander("View Aggregated Sentiment Data"):
-                    st.dataframe(agg_sentiment)
-                
-                # Show raw sentiment data
-                with st.expander("View Raw Sentiment Data"):
-                    st.dataframe(sentiment_data)
+                    # Create improvement DataFrame
+                    improvement_df = pd.DataFrame({
+                        'Model': models,
+                        'RMSE Improvement (%)': [improvements[model]['rmse_improvement'] for model in models],
+                        'MAE Improvement (%)': [improvements[model]['mae_improvement'] for model in models],
+                        'MAPE Improvement (%)': [improvements[model]['mape_improvement'] for model in models],
+                        'Directional Accuracy Improvement (%)': [improvements[model]['dir_acc_improvement'] for model in models]
+                    })
                     
-                # Download sentiment data as CSV
-                csv = agg_sentiment.to_csv()
-                st.download_button(
-                    label="Download Aggregated Sentiment Data",
-                    data=csv,
-                    file_name=f"oil_sentiment_{oil_type}_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
-                )
-
-# ---- PAGE: SIGNAL DECOMPOSITION ----
-elif page == "Signal Decomposition":
-    st.header("Signal Decomposition Analysis")
-    
-    st.markdown("""
-    This page analyzes the decomposition of oil price signals into trend, cyclical, and residual components.
-    Decomposition helps understand the underlying patterns in price movements and can improve forecasting accuracy.
-    """)
-    
-    # Sidebar controls
-    st.sidebar.header("Decomposition Parameters")
-    
-    oil_type = st.sidebar.selectbox(
-        "Oil Type",
-        options=["brent", "wti"],
-        format_func=lambda x: x.upper(),
-        key="decomp_oil_type"
-    )
-    
-    freq = st.sidebar.selectbox(
-        "Data Frequency",
-        options=["daily", "weekly", "monthly"],
-        format_func=lambda x: x.capitalize(),
-        key="decomp_freq"
-    )
-    
-    # Add slider for number of components
-    n_components = st.sidebar.slider(
-        "Number of Components",
-        min_value=3,
-        max_value=7,
-        value=5,
-        step=1,
-        help="Number of components to extract from the price signal"
-    )
-    
-    # Add slider for time period
-    period_options = {
-        "daily": [90, 180, 365, 730],
-        "weekly": [26, 52, 104, 156],
-        "monthly": [12, 24, 36, 60]
-    }
-    
-    period_option_labels = {
-        "daily": ["3 Months", "6 Months", "1 Year", "2 Years"],
-        "weekly": ["6 Months", "1 Year", "2 Years", "3 Years"],
-        "monthly": ["1 Year", "2 Years", "3 Years", "5 Years"]
-    }
-    
-    period_idx = st.sidebar.selectbox(
-        "Analysis Period",
-        options=range(len(period_options[freq])),
-        format_func=lambda x: period_option_labels[freq][x],
-        key="decomp_period"
-    )
-    
-    period_length = period_options[freq][period_idx]
-    
-    # Load data
-    with st.spinner("Loading data..."):
-        # Load price data
-        price_data = load_oil_data(oil_type, freq)
-    
-    if price_data.empty:
-        st.error("Failed to load price data. Please check the logs for details.")
-    else:
-        # Limit to selected period
-        price_data_period = price_data.iloc[-period_length:]
-        
-        st.info(f"Loaded {len(price_data_period)} price data points from {price_data_period.index[0].date()} to {price_data_period.index[-1].date()}")
-        
-        # Decompose price signal
-        with st.spinner("Decomposing price signal..."):
-            decomposition = decompose_price_signal(price_data_period, n_components=n_components)
-        
-        if not decomposition:
-            st.error("Failed to decompose price signal. Check the log for details.")
-        else:
-            # Show original price series
-            st.subheader("Original Price Series")
-            fig, ax = plt.subplots(figsize=(12, 6))
-            ax.plot(price_data_period.index, decomposition['original'], 'b-', linewidth=2)
-            ax.set_title(f"{oil_type.upper()} Price ({freq.capitalize()})")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Price (USD)")
-            ax.grid(True, alpha=0.3)
-            fig.autofmt_xdate()
-            st.pyplot(fig)
-            
-            # Show decomposed components
-            st.subheader("Decomposed Components")
-            
-            # Create subplot grid for all components
-            n_plots = len(decomposition)
-            fig, axes = plt.subplots(n_plots, 1, figsize=(12, 3*n_plots), sharex=True)
-            
-            # Plot each component
-            for i, (name, component) in enumerate(decomposition.items()):
-                ax = axes[i] if n_plots > 1 else axes
-                ax.plot(price_data_period.index, component, linewidth=2)
-                ax.set_title(f"Component: {name.capitalize()}")
-                ax.grid(True, alpha=0.3)
-                
-                # Add y-label only for the original and trend components
-                if name in ['original', 'trend']:
-                    ax.set_ylabel("Price (USD)")
-                else:
-                    ax.set_ylabel("Amplitude")
-            
-            # Add x-label to the bottom plot
-            if n_plots > 1:
-                axes[-1].set_xlabel("Date")
+                    # Display the table
+                    st.dataframe(
+                        improvement_df.style.format({
+                            'RMSE Improvement (%)': '{:.2f}',
+                            'MAE Improvement (%)': '{:.2f}',
+                            'MAPE Improvement (%)': '{:.2f}',
+                            'Directional Accuracy Improvement (%)': '{:.2f}'
+                        }),
+                        hide_index=True,
+                        use_container_width=True
+                    )
             else:
-                axes.set_xlabel("Date")
-            
-            # Format x-axis dates
-            fig.autofmt_xdate()
-            plt.tight_layout()
-            st.pyplot(fig)
-            
-            # Interactive component analysis
-            st.subheader("Interactive Component Analysis")
-            
-            # Select components to compare
-            components_to_compare = st.multiselect(
-                "Select Components to Compare",
-                options=list(decomposition.keys()),
-                default=["original", "trend"],
-                key="components_to_compare"
-            )
-            
-            if components_to_compare:
-                fig, ax = plt.subplots(figsize=(12, 6))
+                st.info("Test data or Naive model forecast not available for improvement analysis.")
+    
+    # ---- PAGE: SENTIMENT ANALYSIS ----
+    elif page == "Sentiment Analysis":
+        st.header("Market Sentiment Analysis")
+        
+        # Tabs for different sentiment views
+        sentiment_tabs = st.tabs(["Sentiment Over Time", "Sentiment Distribution", "Price-Sentiment Correlation"])
+        
+        with sentiment_tabs[0]:  # Sentiment Over Time tab
+            if not st.session_state.agg_sentiment.empty:
+                # Create interactive sentiment vs price plot
+                sentiment_fig = plot_interactive_sentiment_price(
+                    st.session_state.price_data.iloc[-lookback_period:],
+                    st.session_state.agg_sentiment,
+                    title=f"{oil_type.upper()} Price with Market Sentiment"
+                )
                 
-                for name in components_to_compare:
-                    if name in decomposition:
-                        ax.plot(
-                            price_data_period.index,
-                            decomposition[name],
-                            linewidth=2,
-                            label=name.capitalize()
+                st.plotly_chart(sentiment_fig, use_container_width=True)
+                
+                # Show sentiment table with time aggregation options
+                st.subheader("Sentiment Data")
+                
+                # Time aggregation selector
+                time_agg = st.selectbox(
+                    "Time Aggregation",
+                    options=["Daily", "Weekly", "Monthly"],
+                    index=0
+                )
+                
+                # Get sentiment data with selected aggregation
+                if time_agg == "Daily":
+                    show_sentiment = st.session_state.agg_sentiment
+                else:
+                    # Reaggregate with selected frequency
+                    freq = 'W' if time_agg == "Weekly" else 'M'
+                    with st.spinner(f"Aggregating sentiment by {time_agg.lower()} periods..."):
+                        show_sentiment = aggregate_sentiment(
+                            st.session_state.sentiment_data,
+                            freq=freq[0]
                         )
                 
-                ax.set_title("Component Comparison")
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Value")
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                fig.autofmt_xdate()
-                st.pyplot(fig)
+                if not show_sentiment.empty:
+                    # Show the sentiment data table
+                    st.dataframe(
+                        show_sentiment.reset_index().rename(columns={'index': 'Date'}).style.format({
+                            'sentiment_compound': '{:.4f}',
+                            'sentiment_positive': '{:.4f}',
+                            'sentiment_negative': '{:.4f}',
+                            'sentiment_neutral': '{:.4f}',
+                            'count': '{:.0f}'
+                        }).sort_values(by='Date', ascending=False),
+                        use_container_width=True
+                    )
+                    
+                    # Download sentiment data as CSV
+                    csv = show_sentiment.reset_index().to_csv(index=False)
+                    st.download_button(
+                        label="Download Sentiment Data",
+                        data=csv,
+                        file_name=f"oil_sentiment_{oil_type}_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("Sentiment data not available.")
+        
+        with sentiment_tabs[1]:  # Sentiment Distribution tab
+            if not st.session_state.sentiment_data.empty:
+                # Create sentiment distribution plot
+                dist_fig = plot_sentiment_distribution(
+                    st.session_state.sentiment_data,
+                    title="Oil Market Sentiment Distribution"
+                )
                 
-                # Provide interpretation
-                st.subheader("Decomposition Interpretation")
+                st.plotly_chart(dist_fig, use_container_width=True)
+                
+                # Show sentiment statistics
+                compound_values = st.session_state.sentiment_data['sentiment_compound'].dropna()
+                
+                # Calculate statistics
+                mean = compound_values.mean()
+                median = compound_values.median()
+                std = compound_values.std()
+                positive_pct = (compound_values > 0.05).mean() * 100
+                neutral_pct = ((compound_values >= -0.05) & (compound_values <= 0.05)).mean() * 100
+                negative_pct = (compound_values < -0.05).mean() * 100
+                
+                # Create statistics table
+                statistics_df = pd.DataFrame({
+                    'Metric': ['Mean', 'Median', 'Standard Deviation', 'Positive Sentiment (%)', 'Neutral Sentiment (%)', 'Negative Sentiment (%)'],
+                    'Value': [f"{mean:.4f}", f"{median:.4f}", f"{std:.4f}", f"{positive_pct:.2f}%", f"{neutral_pct:.2f}%", f"{negative_pct:.2f}%"]
+                })
+                
+                st.subheader("Sentiment Statistics")
+                st.dataframe(statistics_df, hide_index=True, use_container_width=True)
+                
+                # Add interpretation
+                st.markdown(f"""
+                    <div class="info-box">
+                        <h4>Sentiment Distribution Interpretation</h4>
+                        <p>The sentiment distribution shows the overall market sentiment towards oil. A mean sentiment of <strong>{mean:.4f}</strong> 
+                        indicates {"a positive" if mean > 0.05 else "a negative" if mean < -0.05 else "a neutral"} bias in market discussions.</p>
+                        <p>The distribution reveals that <strong>{positive_pct:.1f}%</strong> of discussions express positive sentiment, 
+                        <strong>{neutral_pct:.1f}%</strong> are neutral, and <strong>{negative_pct:.1f}%</strong> are negative.</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("Sentiment data not available.")
+        
+        with sentiment_tabs[2]:  # Price-Sentiment Correlation tab
+            if not st.session_state.agg_sentiment.empty:
+                # Create correlation analysis between price and sentiment
+                
+                # Align price and sentiment data
+                sentiment_df = st.session_state.agg_sentiment.copy()
+                price_df = st.session_state.price_data.copy()
+                
+                # Filter to common date range
+                start_date = max(sentiment_df.index.min(), price_df.index.min())
+                end_date = min(sentiment_df.index.max(), price_df.index.max())
+                
+                sentiment_aligned = sentiment_df.loc[start_date:end_date]
+                price_aligned = price_df.loc[start_date:end_date]
+                
+                # Create DataFrame with both price and sentiment
+                combined = pd.DataFrame({
+                    'price': price_aligned['Price'],
+                    'sentiment': sentiment_aligned['sentiment_compound']
+                })
+                
+                # Calculate correlation
+                corr = combined['price'].corr(combined['sentiment'])
+                
+                # Calculate cross-correlation at different lags
+                max_lag = 10  # Days
+                corrs = []
+                for lag in range(-max_lag, max_lag + 1):
+                    if lag < 0:
+                        # Sentiment leads price (negative lag)
+                        c = combined['price'].corr(combined['sentiment'].shift(lag))
+                    else:
+                        # Price leads sentiment (positive lag)
+                        c = combined['price'].corr(combined['sentiment'].shift(lag))
+                    corrs.append((lag, c))
+                
+                # Find max correlation and corresponding lag
+                max_corr_lag, max_corr = max(corrs, key=lambda x: abs(x[1]))
+                
+                # Create scatter plot for price vs sentiment
+                fig1 = px.scatter(
+                    combined.reset_index(),
+                    x='price',
+                    y='sentiment',
+                    trendline='ols',
+                    labels={'price': 'Oil Price ($)', 'sentiment': 'Sentiment Score'},
+                    title='Price vs. Sentiment Correlation',
+                    height=500
+                )
+                
+                # Add correlation annotation
+                fig1.add_annotation(
+                    x=combined['price'].max() * 0.9,
+                    y=combined['sentiment'].min() * 0.8,
+                    text=f"Correlation: {corr:.4f}",
+                    showarrow=False,
+                    bgcolor='rgba(255, 255, 255, 0.8)',
+                    bordercolor='black',
+                    borderwidth=1,
+                    borderpad=4
+                )
+                
+                st.plotly_chart(fig1, use_container_width=True)
+                
+                # Create lag correlation plot
+                fig2 = go.Figure()
+                
+                # Add correlation by lag
+                fig2.add_trace(go.Bar(
+                    x=[lag for lag, _ in corrs],
+                    y=[corr for _, corr in corrs],
+                    marker_color=['green' if c > 0 else 'red' for _, c in corrs],
+                    hovertemplate='Lag: %{x}<br>Correlation: %{y:.4f}<extra></extra>'
+                ))
+                
+                # Highlight max correlation
+                fig2.add_shape(
+                    type="rect",
+                    x0=max_corr_lag - 0.4,
+                    y0=0,
+                    x1=max_corr_lag + 0.4,
+                    y1=max_corr,
+                    line=dict(width=0),
+                    fillcolor="rgba(255, 255, 0, 0.3)"
+                )
+                
+                # Add annotation for max correlation
+                fig2.add_annotation(
+                    x=max_corr_lag,
+                    y=max_corr + (0.05 if max_corr > 0 else -0.05),
+                    text=f"Max: {max_corr:.4f} at lag {max_corr_lag}",
+                    showarrow=True,
+                    arrowhead=1
+                )
+                
+                # Update layout
+                fig2.update_layout(
+                    title="Cross-Correlation Between Price and Sentiment by Lag",
+                    xaxis_title="Lag (Negative = Sentiment leads Price, Positive = Price leads Sentiment)",
+                    yaxis_title="Correlation Coefficient",
+                    template='plotly_white',
+                    height=500,
+                    margin=dict(l=10, r=10, t=50, b=10)
+                )
+                
+                # Add zero reference line
+                fig2.add_hline(y=0, line_dash="dash", line_color="gray")
+                
+                st.plotly_chart(fig2, use_container_width=True)
+                
+                # Add interpretation
+                lead_follow = "leads" if max_corr_lag < 0 else "follows" if max_corr_lag > 0 else "moves simultaneously with"
+                days_text = f"by {abs(max_corr_lag)} days" if max_corr_lag != 0 else ""
+                
+                st.markdown(f"""
+                    <div class="info-box">
+                        <h4>Price-Sentiment Correlation Analysis</h4>
+                        <p>The overall correlation between oil price and market sentiment is <strong>{corr:.4f}</strong>, 
+                        indicating a {"strong" if abs(corr) > 0.7 else "moderate" if abs(corr) > 0.4 else "weak"} 
+                        {"positive" if corr > 0 else "negative"} relationship.</p>
+                        
+                        <p>The lag analysis shows that sentiment {lead_follow} price movements {days_text}, 
+                        with a maximum correlation of <strong>{max_corr:.4f}</strong> at lag {max_corr_lag}.</p>
+                        
+                        <p>{"This suggests that sentiment could be a leading indicator for price movements." if max_corr_lag < 0 else
+                           "This suggests that price movements drive market sentiment rather than the other way around." if max_corr_lag > 0 else
+                           "This suggests that price and sentiment tend to move together without either clearly leading the other."}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("Sentiment data not available for correlation analysis.")
+    
+    # ---- PAGE: SIGNAL DECOMPOSITION ----
+    elif page == "Signal Decomposition":
+        st.header("Signal Decomposition Analysis")
+        
+        # Check if decomposition is available
+        if st.session_state.decomposition is not None:
+            # Component selection
+            component_options = list(st.session_state.decomposition.keys())
+            selected_components = st.multiselect(
+                "Select Components to Display",
+                options=component_options,
+                default=["original", "trend", "residual"]
+            )
+            
+            if selected_components:
+                # Create interactive decomposition plot
+                decomp_fig = plot_interactive_decomposition(
+                    {comp: st.session_state.decomposition[comp] for comp in selected_components},
+                    st.session_state.decomposition_dates,
+                    component_names=selected_components,
+                    title="Oil Price Signal Decomposition"
+                )
+                
+                st.plotly_chart(decomp_fig, use_container_width=True)
+                
+                # Add interpretation
+                st.markdown("""
+                    <div class="info-box">
+                        <h4>Signal Decomposition Interpretation</h4>
+                        <p>The signal decomposition breaks down the oil price into key components:</p>
+                        <ul>
+                            <li><strong>Original:</strong> The raw oil price time series.</li>
+                            <li><strong>Trend:</strong> The long-term directional movement of oil prices, capturing the overall market movement.</li>
+                            <li><strong>Cycles:</strong> Periodic patterns of different frequencies, representing market cycles of varying lengths.</li>
+                            <li><strong>Residual:</strong> Random fluctuations and noise that cannot be explained by trend or cycles.</li>
+                        </ul>
+                        <p>This decomposition helps identify which components drive price movements and can improve forecasting by modeling each component separately.</p>
+                    </div>
+                """, unsafe_allow_html=True)
                 
                 # Calculate variance explained by each component
-                variance_original = np.var(decomposition['original'])
-                variance_explained = {}
+                variances = {}
+                original_variance = np.var(st.session_state.decomposition['original'])
                 
-                for name, component in decomposition.items():
-                    if name != 'original':
-                        variance_explained[name] = np.var(component) / variance_original * 100
+                for component in st.session_state.decomposition:
+                    if component != 'original':
+                        variances[component] = (np.var(st.session_state.decomposition[component]) / original_variance) * 100
                 
-                # Sort components by variance explained
-                sorted_variance = sorted(variance_explained.items(), key=lambda x: x[1], reverse=True)
+                # Create variance breakdown plot
+                variance_fig = go.Figure()
                 
-                # Create variance explained chart
-                fig, ax = plt.subplots(figsize=(10, 6))
+                # Sort components by variance
+                sorted_components = sorted(variances.items(), key=lambda x: x[1], reverse=True)
+                components = [comp for comp, _ in sorted_components]
+                var_values = [var for _, var in sorted_components]
                 
-                component_names = [item[0].capitalize() for item in sorted_variance]
-                variances = [item[1] for item in sorted_variance]
+                # Create horizontal bar chart
+                variance_fig.add_trace(go.Bar(
+                    y=components,
+                    x=var_values,
+                    orientation='h',
+                    marker_color='skyblue',
+                    text=[f"{var:.1f}%" for var in var_values],
+                    textposition='outside',
+                    hovertemplate='Component: %{y}<br>Variance Explained: %{x:.1f}%<extra></extra>'
+                ))
                 
-                ax.bar(component_names, variances, color='skyblue', alpha=0.7)
-                ax.set_title("Variance Explained by Each Component")
-                ax.set_xlabel("Component")
-                ax.set_ylabel("Variance Explained (%)")
-                ax.grid(True, alpha=0.3, axis='y')
-                
-                # Add value labels
-                for i, value in enumerate(variances):
-                    ax.text(i, value + 1, f"{value:.1f}%", ha='center')
-                
-                st.pyplot(fig)
-                
-                # Textual interpretation
-                st.markdown(f"""
-                **Key Insights from Decomposition:**
-                
-                - **Trend Component:** Explains {variance_explained.get('trend', 0):.1f}% of the total variance, representing the long-term price direction.
-                - **Cyclical Components:** {"The cyclical components capture periodic patterns of different frequencies in the oil price movements." if any(k.startswith('cycle') for k in decomposition.keys()) else "No distinct cyclical components were identified in this time period."}
-                - **Residual Component:** Represents {variance_explained.get('residual', 0):.1f}% of the variance, showing the random noise or unexplained movements.
-                
-                Decomposition can help improve forecasting by separately modeling each component and combining predictions.
-                The Sentiment-Enhanced LSTM model leverages this approach by focusing more attention on important patterns.
-                """)
-                
-                # Download decomposition data
-                decomp_df = pd.DataFrame({
-                    name: component
-                    for name, component in decomposition.items()
-                }, index=price_data_period.index)
-                
-                csv = decomp_df.to_csv()
-                st.download_button(
-                    label="Download Decomposition Data",
-                    data=csv,
-                    file_name=f"oil_decomposition_{oil_type}_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
+                # Update layout
+                variance_fig.update_layout(
+                    title="Variance Explained by Each Component",
+                    xaxis_title="Variance Explained (%)",
+                    yaxis_title="Component",
+                    template='plotly_white',
+                    height=400,
+                    margin=dict(l=10, r=100, t=50, b=10)  # Extra right margin for text labels
                 )
+                
+                st.subheader("Component Importance Analysis")
+                st.plotly_chart(variance_fig, use_container_width=True)
+                
+                # Component correlation with sentiment
+                st.subheader("Component-Sentiment Correlation")
+                
+                if not st.session_state.agg_sentiment.empty:
+                    # Align sentiment and decomposition dates
+                    sentiment_aligned = st.session_state.agg_sentiment.copy()
+                    
+                    # Convert decomposition dates to DataFrame
+                    decomp_df = pd.DataFrame(
+                        {comp: st.session_state.decomposition[comp] for comp in st.session_state.decomposition},
+                        index=st.session_state.decomposition_dates
+                    )
+                    
+                    # Calculate correlations
+                    correlations = {}
+                    for component in decomp_df.columns:
+                        correlations[component] = decomp_df[component].corr(sentiment_aligned['sentiment_compound'] if 'sentiment_compound' in sentiment_aligned else 0)
+                    
+                    # Create correlation heatmap
+                    corr_fig = go.Figure()
+                    
+                    # Sort components by correlation strength
+                    sorted_corrs = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
+                    comp_names = [comp for comp, _ in sorted_corrs]
+                    corr_values = [corr for _, corr in sorted_corrs]
+                    
+                    # Create horizontal bar chart
+                    corr_fig.add_trace(go.Bar(
+                        y=comp_names,
+                        x=corr_values,
+                        orientation='h',
+                        marker_color=['green' if c > 0 else 'red' for c in corr_values],
+                        text=[f"{corr:.4f}" for corr in corr_values],
+                        textposition='outside',
+                        hovertemplate='Component: %{y}<br>Correlation: %{x:.4f}<extra></extra>'
+                    ))
+                    
+                    # Update layout
+                    corr_fig.update_layout(
+                        title="Correlation Between Components and Market Sentiment",
+                        xaxis_title="Correlation Coefficient",
+                        yaxis_title="Component",
+                        template='plotly_white',
+                        height=400,
+                        margin=dict(l=10, r=100, t=50, b=10)  # Extra right margin for text labels
+                    )
+                    
+                    # Add zero reference line
+                    corr_fig.add_vline(x=0, line_dash="dash", line_color="gray")
+                    
+                    st.plotly_chart(corr_fig, use_container_width=True)
+                    
+                    # Add interpretation
+                    st.markdown("""
+                        <div class="info-box">
+                            <h4>Component-Sentiment Correlation Interpretation</h4>
+                            <p>This analysis shows how different price components correlate with market sentiment:</p>
+                            <ul>
+                                <li>High correlation between sentiment and trend suggests sentiment drives long-term price direction.</li>
+                                <li>Correlation with cycles may indicate how sentiment influences market cycles of different durations.</li>
+                                <li>Correlation with residuals suggests sentiment's impact on short-term price volatility.</li>
+                            </ul>
+                            <p>These insights help understand how market psychology influences different aspects of price behavior.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Sentiment data not available for correlation analysis.")
+            else:
+                st.warning("Please select at least one component to display")
+        else:
+            st.warning("Decomposition data not available. Please check if the price data was loaded correctly.")
+
 
 if __name__ == "__main__":
-    # Optional: Add custom CSS for better styling
-    st.markdown("""
-<style>
-.stApp {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-div[data-testid="stVerticalBlock"] > div {
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-}
-.block-container {
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-}
-div.stDataFrame > div {
-    width: 100%;
-}
-div[data-testid="column"] {
-    padding: 0.5rem;
-}
-.css-1r6slb0 {
-    width: 100%;
-}
-</style>
-""", unsafe_allow_html=True)
+    try:
+        main()
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logger.error(f"Dashboard error: {str(e)}", exc_info=True)

@@ -1,21 +1,28 @@
 ./
     setup_checker.py
     generate_test_data.py
+    .DS_Store
     reddit_scraper.log
     dir.py
     LICENSE
     requirements.txt
     test_pyemd.py
     reddit_config.json
+    forecast_pipeline.log
+    run_forecast_pipeline.py
     news_api_config.json
     README.md
+    finbert_sentiment.log
     dashboard.py
+    sentiment_model_test.log
     directory_structure.txt
     .gitignore
     historical_data_scraper.log
+    test_sentiment_model.py
     cache/
     tests/
     models/
+        .DS_Store
         evaluation/
             example_evaluation_20250325_222327.json
     setup.py/
@@ -27,8 +34,12 @@
         packed-refs
         COMMIT_EDITMSG
         FETCH_HEAD
+        .gitstatus.Hr44Wh/
+            a/
+            b/
         objects/
             61/
+                130d9cd4ea087c366c73d928fe51cd48b77768
                 bf0e05f90e068e5594e1c11c5d0dcc20ff7785
             92/
                 ab839fdbde9ecb7c33181bab7efde9884a504d
@@ -52,6 +63,7 @@
             04/
                 373cb2467471b38e64110a69078a7ce1c0425a
             32/
+                17644ac3a36273337c02c8ae86f601de6406a4
                 0a876a139441c380a565fb771ad66da1a8e26c
             35/
                 c778b8b022a4ebd7b9e63eb9ba2f8689076013
@@ -66,12 +78,15 @@
             33/
                 a92e403e0acb2cb300c44e4c65e087cfba026c
                 732f04c4145779f328985959334353fffc7c5c
+            05/
+                40f8f15dd6b0df8694f7cc74f97f9bdf0bffc3
             9d/
                 b1a47340045279b04b1bab452e5edf2007be00
             9c/
                 aeb5ce3ac03b3ff9eb2e9d533609405bb98d7d
                 2aab464b87019ad493c2215ef779d494bc913b
             02/
+                dddf24df39bf4377b45337446f32da38db904e
                 cc46b9ae2e2176edf5e42558d8bc9941f7abf5
                 3de3c1ae1fb214048ea59f190cae9fdef0a4c6
             a4/
@@ -92,9 +107,11 @@
                 a1349b275caa68302280542f7e93b79a857573
             bc/
                 ebdd3a047b3ea249d04228f799220ec0216013
+                e351b7cc2cc227ddba22794a4ec65d276412be
             ab/
                 daaa417881b765b7d32394b1957aff4a53a94f
             f3/
+                90a9d9dd2cf09feb2427e376c3536082a5055b
                 51082d97affcf397037339e74a21e27bf0f521
                 31a258ac5663334e099fd78bbbb4aab31e863d
             eb/
@@ -113,6 +130,7 @@
                 fb05fc46edeed6643a10365986bf6db5d71fb6
                 79b5bf40a46b2fc704e10abd3c6646f8883b7a
             f5/
+                9e9cad4c657d79119b49c38776363ab75bf030
                 2db936a5993f5239ebac67628200fc17c09d84
             e3/
                 535c9266216527b2f4cedae8811780ec585152
@@ -131,6 +149,8 @@
             20/
                 c49b80596527855112dcab16653f2c5543f3e2
                 5aa8db0fd4562cafff3e4c74065993cbf57f40
+            18/
+                9a20b9bbebde3e44d6c3baa29bba87ed2e43f1
             pack/
                 pack-34029ebbfdd7c2a19c82d47301978eaf83d7573e.idx
                 pack-34029ebbfdd7c2a19c82d47301978eaf83d7573e.pack
@@ -206,9 +226,12 @@
                 ccee557a2300b8df013fa0820948b010fd37a2
             53/
                 a43873260a9caf7748e7e7fb4d7d8085259c18
+            3f/
+                7a5f30863fe03696e6fd7173e70d5bfd05538a
             5e/
                 88bd7c2545c3291684c6103ec5e0269de40cc4
                 42877f3ea2d33ffa191cab07546768dd3560d8
+                4cfdf120e520ea858eb421c78653ce9544f266
             37/
                 2adcc81c51109b6eab6fcc77242e2305121a8c
                 21c3e48030e6989dbd811b13c66b8d88525a6e
@@ -227,14 +250,18 @@
                 dd1f0896dd6f46c27e044f5c91d1dc3012a4fb
             d4/
                 d078c37a24a12fc323b0a4178ccc6c65e71875
+            a0/
+                9f68659f3433dce58b5e3d8425be3767d82cc4
             b8/
                 586c7f86fdd0a662a6374425625fdb860da7c7
             dc/
                 5ef65111b27bb2e03a97fffab46310c017b1c4
             b6/
+                ac10ecb2f556c865d5993dfe4351f6e4dc76a5
                 ce6371106cfe33cbad1592a32ec84fad8a72d8
             a9/
                 4bb0e5d4ee3e1e6c5122245d503fd992a1afb2
+                e711a86bdcfe23bef06656cd32dd3677229e9a
                 2c36529239e6be3b602a7c4e67693ebbf1f72d
             d5/
                 0dcff0683be9bffe6549a0795117a4ad33e3cc
@@ -295,6 +322,8 @@
                 e998b70b4e92ae92019e02f9647a6719c9c4f9
             84/
                 bb7da95c258cf235f2275f16743d59d973daeb
+            24/
+                c704ed55863e612365762a73d7696dfbd31f7c
             23/
                 32919e3ceb63ae0193c50177311ccb0a9cc31e
             4f/
@@ -314,6 +343,8 @@
                 6f81db3ca3f126369b3d8b499cba5029e954b1
             71/
                 12b0df8adaf0c6c5d8ea69c3e60a74519de404
+            76/
+                f776423d50207373462e9a26739215ea2e2593
             1c/
                 d5ad8e19957bcef7efb691dc270334f0dc55aa
             82/
@@ -325,6 +356,8 @@
             40/
                 59497de1e32838069163cb866738105455aea6
                 5570e06528628e19afe393de7542d754f39b53
+            2b/
+                3dbdc71730cdcf98935356ef7ddc29283dd0a2
             47/
                 71fa80a44e451bf99e9b34bb97e67d9a355e8f
             8b/
@@ -398,6 +431,7 @@
                 reddit_comments_investing.csv
                 reddit_comments_stocks.csv
                 reddit_comments_wallstreetbets.csv
+                comprehensive_sentiment_dataset_analyzed.csv
                 reddit_posts_stockmarket.csv
                 reddit_posts_investing.csv
                 scraping_stats.json
@@ -437,6 +471,7 @@
         models/
             ceemdan.py
             baseline.py
+            sentiment_enhanced_lstm.py
             baseline_wrapper.py
             ensemble.py
             lstm_attention.py
@@ -446,6 +481,7 @@
                 lstm_attention.cpython-311.pyc
                 baseline.cpython-311.pyc
                 ceemdan.cpython-311.pyc
+                sentiment_enhanced_lstm.cpython-311.pyc
         nlp/
             reddit_historical_scraper.py
             bert_sentiment_init.py
@@ -459,6 +495,7 @@
             __pycache__/
                 config_setup.cpython-311.pyc
                 bert_sentiment_init.cpython-311.pyc
+                finbert_sentiment.cpython-311.pyc
                 run_historical_scraper.cpython-311.pyc
                 sentiment_demo.cpython-311.pyc
                 bert_sentiment.cpython-311.pyc
