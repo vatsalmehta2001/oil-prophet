@@ -21,6 +21,11 @@ streamlit>=1.12.0
 plotly>=5.8.0
 altair>=4.2.0
 
+# Web & API
+requests>=2.27.0
+backoff>=2.0.0
+beautifulsoup4>=4.10.0
+
 # Utilities
 tqdm>=4.64.0
 typing-extensions>=4.2.0
