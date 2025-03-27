@@ -2459,7 +2459,9 @@ class EnhancedRedditScraper:
         ax1 = fig.add_subplot(gs[0, :])
         monthly_counts = df.groupby(df["datetime"].dt.to_period("M")).size()
         monthly_counts.index = monthly_counts.index.to_timestamp()
-        monthly_counts.plot(ax=ax1, kind="bar", color="steelblue", alpha=0.7)
+        bars = monthly_counts.plot(ax=ax1, kind="bar", color="steelblue")
+        for bar in bars.patches:
+            bar.set_alpha(0.7)
         ax1.set_title("Data Coverage by Month", fontsize=14)
         ax1.set_ylabel("Number of Items")
         ax1.set_xlabel("")
@@ -2480,7 +2482,7 @@ class EnhancedRedditScraper:
         if "type" in df.columns:
             type_counts = df["type"].value_counts()
             type_counts.plot(ax=ax3, kind="pie", autopct="%1.1f%%", startangle=90, 
-                         colors=plt.cm.Paired(range(len(type_counts))), alpha=0.7)
+                         colors=plt.cm.Paired(range(len(type_counts))))
             ax3.set_title("Data by Type", fontsize=12)
             ax3.set_ylabel("")
         

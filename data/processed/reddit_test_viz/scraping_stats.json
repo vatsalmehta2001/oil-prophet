@@ -1,0 +1,24 @@
+{
+    "start_time": "2025-03-27T02:22:26.254910",
+    "requests": {
+        "total": 0,
+        "successful": 0,
+        "failed": 0,
+        "retried": 0,
+        "cached": 0
+    },
+    "items_collected": {
+        "reddit_posts": 29,
+        "reddit_comments": 0,
+        "news_articles": 0,
+        "financial_data": 0,
+        "total": 1025
+    },
+    "sources": {},
+    "timespan": {
+        "start": null,
+        "end": null
+    },
+    "end_time": "2025-03-27T02:25:37.398177",
+    "duration_seconds": 191.143267
+}
