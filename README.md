@@ -7,7 +7,7 @@
 
 Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques with deep learning (LSTM with attention mechanism) and alternative data sources to predict oil price movements with higher accuracy than traditional methods.
 
-> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and historical data scraping have been implemented and successfully tested. Reddit historical scraping is now functional, and sentiment analysis integration is under active development.
+> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and historical data scraping have been implemented and successfully tested. Reddit historical scraping with comments is now fully functional, and sentiment analysis integration is under active development.
 
 ## Features
 
@@ -18,6 +18,10 @@ Oil Prophet is a sophisticated forecasting system that combines advanced time-se
 - **Baseline Models**: Simple forecasting models for performance benchmarking
 - **Ensemble Approach**: Combines predictions from multiple models for more robust forecasts
 - **Enhanced Reddit Historical Scraper**: Comprehensive system for collecting oil-related discussions from Reddit spanning from 2008 to present
+  - Scrapes both posts and comments for each relevant discussion
+  - Implements relevance filtering to focus on oil-related content
+  - Maintains relationship between posts and their comments
+  - Supports multi-subreddit collection with configurable parameters
 - **Data Coverage Visualization**: Tools to analyze and visualize the coverage of collected data across different time periods
 - **Visualization System**: Comprehensive visualization tools for time series data, decomposition, forecasts, and model comparison
 - **Evaluation Framework**: Rigorous model evaluation with multiple metrics and statistical significance testing
@@ -30,15 +34,16 @@ Oil Prophet is a sophisticated forecasting system that combines advanced time-se
 ### Planned
 - **Interactive Dashboard**: Web-based interface for exploring forecasts and model performance
 - **API Development**: Exposing model predictions through a REST API
+- **Temporal Sentiment Aggregation**: Methods to aggregate sentiment across different timeframes for time-series analysis
 
 ## Project Structure
 
 ```
 oil-prophet/
 ├── data/
-│   ├── raw/                 # Raw oil price data files
+│   ├── raw/                 # Raw oil price data files (WTI, Brent crude)
 │   └── processed/           # Processed datasets and sentiment data
-│       └── reddit_test_small/   # Historical Reddit data
+│       └── reddit_test_small/   # Historical Reddit data with posts and comments
 ├── models/                  # Saved model files and evaluation results
 ├── notebooks/
 │   └── plots/               # Generated visualization plots
@@ -71,7 +76,9 @@ oil-prophet/
 
 ## Recent Achievements
 
-✅ **Enhanced Reddit Scraper**: Successfully implemented a comprehensive Reddit scraper that can collect historical data from 2008 to present across multiple subreddits with relevance filtering.
+✅ **Enhanced Reddit Scraper with Comments**: Successfully implemented a comprehensive Reddit scraper that collects both posts and their associated comments across multiple financial subreddits, with proper relationship maintenance between posts and comments.
+
+✅ **Multi-Subreddit Coverage**: The scraper successfully collects data from r/investing, r/stocks, r/stockmarket, r/wallstreetbets, r/options, r/finance, r/SecurityAnalysis, r/economics, r/economy, and r/business, providing a broad spectrum of market sentiment.
 
 ✅ **Data Coverage Analysis**: Built tools to analyze and visualize the coverage of collected data, helping identify gaps in historical sentiment data.
 
@@ -88,7 +95,7 @@ oil-prophet/
 - [x] Ensemble model development
 - [x] Visualization system
 - [x] Model evaluation framework
-- [x] Historical Reddit data scraper
+- [x] Historical Reddit data scraper with comments
 - [ ] Complete sentiment analysis implementation
 - [ ] Historical news data collection (pre-Reddit era)
 - [ ] Sentiment-enhanced feature creation
@@ -100,6 +107,7 @@ oil-prophet/
 ### Prerequisites
 - Python 3.8+
 - Dependencies listed in requirements.txt
+- Reddit API credentials (for historical data scraping)
 
 ### Installation
 
@@ -142,7 +150,7 @@ oil-prophet/
    python -m src.visualization.plots
    ```
 
-4. Collect historical Reddit data:
+4. Collect historical Reddit data with comments:
    ```bash
    python -m src.nlp.reddit_historical_scraper --start-year=2020 --end-year=2023 --skip-news --skip-financial --output-dir=data/processed/reddit_data
    ```
@@ -151,6 +159,37 @@ oil-prophet/
    ```bash
    python -m src.evaluation.metrics
    ```
+
+## Data Collection Details
+
+### Reddit Historical Scraper
+
+The Reddit historical scraper collects data from financial subreddits with these key features:
+
+1. **Post and Comment Collection**: For each relevant post, the scraper also collects all associated comments, providing a complete picture of the discussion.
+
+2. **Relevance Filtering**: Uses keyword matching and relevance scoring to focus on oil-related content, with configurable relevance thresholds.
+
+3. **Data Structure**:
+   - Posts include title, text content, author, score, comment count, and creation date
+   - Comments include text, author, score, parent post ID, and creation date
+   - Relationship between posts and comments is maintained through post_id references
+
+4. **Comprehensive Coverage**: Collects data from multiple subreddits focused on finance, investing, and economics to capture diverse perspectives.
+
+5. **Historical Range**: Can collect data from Reddit's inception (2008) to present day.
+
+6. **Quality Filters**: Includes options to filter by post score and comment quality to focus on significant discussions.
+
+7. **Data Storage**: Saves data in both individual files per subreddit and a combined comprehensive dataset.
+
+### Planned News Data Collection
+
+To complement Reddit data (which only goes back to 2008), the system is being enhanced to collect historical news articles about oil markets from 1987-2008 using:
+
+1. News archive APIs (NYTimes, etc.)
+2. Financial news databases
+3. Simulated historical data for periods with limited digital records
 
 ## Applications
 
@@ -169,13 +208,15 @@ We're currently focused on improving the sentiment analysis component of the sys
 
 1. **FinBERT Integration**: Implementing specialized financial BERT models that are pre-trained on financial texts for better sentiment understanding of oil market discussions.
 
-2. **Historical Data Coverage**: Working on methods to fill gaps in historical sentiment data, especially for the pre-Reddit era (1987-2008).
+2. **Comment-Level Sentiment Analysis**: Developing methods to analyze sentiment at the comment level and aggregate it for each discussion topic.
 
-3. **Oil Market Domain Adaptation**: Adapting sentiment models to better understand oil-specific terminology and market dynamics.
+3. **Historical Data Coverage**: Working on methods to fill gaps in historical sentiment data, especially for the pre-Reddit era (1987-2008).
 
-4. **Multi-Source Sentiment Aggregation**: Developing methods to combine sentiment signals from multiple sources (Reddit, news, financial datasets).
+4. **Oil Market Domain Adaptation**: Adapting sentiment models to better understand oil-specific terminology and market dynamics.
 
-5. **Temporal Sentiment Features**: Creating time-based sentiment features that can capture market sentiment shifts over different timeframes.
+5. **Multi-Source Sentiment Aggregation**: Developing methods to combine sentiment signals from multiple sources (Reddit, news, financial datasets).
+
+6. **Temporal Sentiment Features**: Creating time-based sentiment features that can capture market sentiment shifts over different timeframes.
 
 ### Future Work
 
@@ -183,7 +224,7 @@ The next major milestone is to complete the sentiment analysis pipeline and inte
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License
 
 ## Acknowledgments
 
