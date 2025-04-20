@@ -245,7 +245,7 @@ The interactive Streamlit dashboard is currently under development and includes:
 
 4. **Signal Decomposition Analysis**: Visualize the components of price signals and their contributions.
 
-**Note**: The dashboard is still in active development and may have stability issues. We're working to resolve these and improve the user experience.
+**Note**: The dashboard is still in active development and may have stability issues. I'm working to resolve these and improve the user experience.
 
 ## Applications
 
