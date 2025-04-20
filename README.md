@@ -258,7 +258,7 @@ This forecasting system is valuable for:
 
 ## Future Work
 
-Our next major milestones include:
+Next major milestones include:
 
 1. **Completing the Interactive Dashboard**: Finishing and stabilizing the Streamlit dashboard for easy exploration of forecasts and models.
 
