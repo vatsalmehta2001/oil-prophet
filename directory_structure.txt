@@ -1,5 +1,7 @@
 ./
     setup_checker.py
+    API_README.md
+    api.log
     generate_test_data.py
     .DS_Store
     reddit_scraper.log
@@ -7,6 +9,7 @@
     LICENSE
     requirements.txt
     test_pyemd.py
+    Dockerfile
     reddit_config.json
     forecast_pipeline.log
     run_forecast_pipeline.py
@@ -14,10 +17,13 @@
     README.md
     finbert_sentiment.log
     dashboard.py
+    api.py
     sentiment_model_test.log
     directory_structure.txt
     .gitignore
+    docker-compose.yml
     historical_data_scraper.log
+    dashboard.log
     test_sentiment_model.py
     cache/
     tests/
@@ -25,6 +31,8 @@
         .DS_Store
         evaluation/
             example_evaluation_20250325_222327.json
+    __pycache__/
+        api.cpython-311.pyc
     setup.py/
     .git/
         config
@@ -34,9 +42,6 @@
         packed-refs
         COMMIT_EDITMSG
         FETCH_HEAD
-        .gitstatus.Hr44Wh/
-            a/
-            b/
         objects/
             61/
                 130d9cd4ea087c366c73d928fe51cd48b77768
@@ -117,6 +122,7 @@
             eb/
                 75ced5630b236a794cb21d91e73bcd55aba348
                 eea2c4f7e7190f256d66cae54672cd2380a5d6
+                1eb24f7885c2617cda1844ee5246a45bb4a5ee
             c0/
                 764b90e52f56aa0093a7f82b515c8e93878baf
             ee/
@@ -141,6 +147,8 @@
                 b2e1e0086851baec0357e7bc614fa90b1cd4a3
             c1/
                 6cca844d19354346cde38bc1a64c34b69d7b34
+            c6/
+                69b3629b42bf5ccda3b3e3262e5b079cfba7a1
             ec/
                 ccb1a1e32a4fb4018868ebbb602b91a293d245
                 f619eb6ec3a80dcbdd9c2d2882f8ec05f125b7
@@ -151,6 +159,7 @@
                 5aa8db0fd4562cafff3e4c74065993cbf57f40
             18/
                 9a20b9bbebde3e44d6c3baa29bba87ed2e43f1
+                5e000c3300ae774ae33a2e5dd7ffac8b9c3b87
             pack/
                 pack-34029ebbfdd7c2a19c82d47301978eaf83d7573e.idx
                 pack-34029ebbfdd7c2a19c82d47301978eaf83d7573e.pack
@@ -167,6 +176,7 @@
                 b0c796d9f7c4d0b778059299ac17bfb3497e4b
             73/
                 6e1d9f5895a29bbfc47cdc91e3f25816a75642
+                d8262bfcdbd7f1a913db8d73e49a1e1ed1ee68
                 992da331a6215da6013b3453503839d0b546bb
             80/
                 0967317fa58ed4af9fc1f2cd0e66c51b07ed58
@@ -379,6 +389,9 @@
                     origin/
                         HEAD
                         main
+        .gitstatus.BAVOsM/
+            a/
+            b/
         hooks/
             commit-msg.sample
             pre-rebase.sample
@@ -501,6 +514,7 @@
                 bert_sentiment.cpython-311.pyc
                 reddit_historical_scraper.cpython-311.pyc
         api/
+            oil_prophet_client.py
         evaluation/
             metrics.py
             __pycache__/

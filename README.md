@@ -7,7 +7,7 @@
 
 Oil Prophet is a sophisticated forecasting system that combines advanced time-series decomposition techniques with deep learning (LSTM with attention mechanism) and market sentiment analysis to predict oil price movements with higher accuracy than traditional methods.
 
-> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and sentiment analysis integration have been implemented. Reddit historical scraping with comments is fully functional, and sentiment-enhanced LSTM model now successfully integrates market sentiment with price patterns. Interactive dashboard is currently under development.
+> 🚀 **Development Progress**: Core components including data processing, signal decomposition, forecasting models, and sentiment analysis integration have been implemented. Reddit historical scraping with comments is fully functional, and sentiment-enhanced LSTM model now successfully integrates market sentiment with price patterns. Interactive dashboard has been developed but is facing compatibility issues with newer NumPy/PyTorch versions.
 
 ## Features
 
@@ -91,6 +91,42 @@ oil-prophet/
 ✅ **FinBERT Integration**: Successfully integrated specialized financial BERT models for improved sentiment analysis of oil market-specific content.
 
 ✅ **CLI Interface**: Developed a comprehensive command-line interface for running the complete forecasting pipeline.
+
+## Current Development Roadblocks
+
+### Dashboard Compatibility Issues (April 2025)
+
+The project is currently facing several critical issues that are blocking progress:
+
+1. **NumPy 2.x Compatibility**: The dashboard is encountering runtime errors due to compatibility issues between NumPy 1.x compiled modules and NumPy 2.1.3:
+   ```
+   A module that was compiled using NumPy 1.x cannot be run in NumPy 2.1.3 as it may crash.
+   ```
+   This affects the PyTorch dependency used for the sentiment analysis component.
+
+2. **Keras Model Loading Errors**: The dashboard cannot load the trained LSTM and Sentiment-Enhanced LSTM models due to:
+   - Shape definition issues: `"Shapes used to initialize variables must be fully-defined (no 'None' dimensions)"`
+   - Missing metric function errors: `"Could not locate function 'mse'. Make sure custom classes are decorated with '@keras.saving.register_keras_serializable()'"`
+
+3. **Plotly/Timestamp Compatibility**: When attempting to create forecast visualizations, there are errors with timestamp arithmetic:
+   ```
+   TypeError: Addition/subtraction of integers and integer-arrays with Timestamp is no longer supported.
+   ```
+
+4. **Sentiment-Enhanced LSTM Training Errors**: Training of the Sentiment-Enhanced LSTM model fails due to shape mismatch in the concatenation layer:
+   ```
+   ValueError: A `Concatenate` layer requires inputs with matching shapes except for the concatenation axis. Received: input_shape=[(None, 64), (None, 30, 64)]
+   ```
+
+### Next Steps
+
+To resolve these issues, the following steps are planned:
+
+1. Downgrade NumPy to version 1.x to resolve compatibility issues with PyTorch
+2. Rebuild the model architecture to fix shape definition problems
+3. Update model serialization to use the newer Keras format (`.keras` instead of `.h5`)
+4. Refactor timestamp handling in the visualization code
+5. Debug and fix the Sentiment-Enhanced LSTM model architecture
 
 ## Roadmap
 

@@ -91,9 +91,11 @@ def align_sentiment_with_price_data(
     # For older dates where we have no sentiment data, use neutral values
     sentiment_cols = [col for col in merged_df.columns if col.startswith('sentiment_')]
     
-    # First try forward and backward fill
-    merged_df[sentiment_cols] = merged_df[sentiment_cols].fillna(method='ffill')
-    merged_df[sentiment_cols] = merged_df[sentiment_cols].fillna(method='bfill')
+    # Fill missing values with forward fill
+    merged_df[sentiment_cols] = merged_df[sentiment_cols].ffill()
+    
+    # Then backward fill any remaining gaps
+    merged_df[sentiment_cols] = merged_df[sentiment_cols].bfill()
     
     # For any remaining NaNs, fill with neutral sentiment
     merged_df['sentiment_sentiment_compound'] = merged_df['sentiment_sentiment_compound'].fillna(0)

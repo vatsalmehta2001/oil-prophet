@@ -31,6 +31,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -229,6 +230,7 @@ def train_models(args):
     
     # Ensure output directory exists
     os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs("models", exist_ok=True)
     
     # Load oil price data
     logger.info(f"Loading {args.oil_type} {args.freq} price data...")
@@ -248,119 +250,125 @@ def train_models(args):
     
     # Prepare dataset
     logger.info("Preparing combined dataset...")
-    dataset = prepare_sentiment_features(
-        price_df=price_data,
-        sentiment_df=sentiment_data,
-        window_size=args.window_size,
-        forecast_horizon=args.forecast_horizon
-    )
-    
-    # Log dataset information
-    logger.info(f"Dataset prepared with {len(dataset['X_price_train'])} training samples")
-    logger.info(f"Price input shape: {dataset['X_price_train'].shape}")
-    logger.info(f"Sentiment input shape: {dataset['X_sentiment_train'].shape}")
-    logger.info(f"Target shape: {dataset['y_train'].shape}")
-    
-    # Create and train price-only model
-    logger.info("Training price-only LSTM model...")
-    price_model = LSTMWithAttention(
-        input_shape=(dataset['X_price_train'].shape[1], dataset['X_price_train'].shape[2]),
-        output_dim=dataset['y_train'].shape[1],
-        lstm_units=[128, 64],
-        dropout_rate=0.2,
-        bidirectional=True
-    )
-    
-    price_history = price_model.fit(
-        dataset['X_price_train'],
-        dataset['y_train'],
-        dataset['X_price_val'],
-        dataset['y_val'],
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        patience=args.epochs // 5,
-        model_path="models/lstm_price_only.h5"
-    )
-    
-    # Create and train sentiment-enhanced model
-    logger.info("Training sentiment-enhanced LSTM model...")
-    sentiment_model = SentimentEnhancedLSTM(
-        price_input_shape=(dataset['X_price_train'].shape[1], dataset['X_price_train'].shape[2]),
-        sentiment_input_shape=(dataset['X_sentiment_train'].shape[1], dataset['X_sentiment_train'].shape[2]),
-        output_dim=dataset['y_train'].shape[1],
-        lstm_units=[128, 64],
-        dropout_rate=0.2,
-        bidirectional=True
-    )
-    
-    sentiment_history = sentiment_model.fit(
-        dataset['X_price_train'],
-        dataset['X_sentiment_train'],
-        dataset['y_train'],
-        dataset['X_price_val'],
-        dataset['X_sentiment_val'],
-        dataset['y_val'],
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        patience=args.epochs // 5,
-        model_path=args.model_path
-    )
-    
-    # Evaluate models
-    logger.info("Evaluating models...")
-    price_metrics = price_model.evaluate(dataset['X_price_test'], dataset['y_test'])
-    sentiment_metrics = sentiment_model.evaluate(
-        dataset['X_price_test'],
-        dataset['X_sentiment_test'],
-        dataset['y_test']
-    )
-    
-    # Log performance comparison
-    logger.info("\nMODEL EVALUATION RESULTS")
-    for key in price_metrics:
-        price_val = price_metrics[key]
-        sent_val = sentiment_metrics[key]
-        improvement = (1 - sent_val / price_val) * 100
-        logger.info(f"{key}: {price_val:.4f} vs {sent_val:.4f} ({improvement:+.2f}%)")
-    
-    # Create visualizations
-    logger.info("Creating visualizations...")
-    
-    # Save model comparison plot
-    comparison_plot = sentiment_model.compare_with_price_only_model(
-        price_model,
-        dataset['X_price_test'],
-        dataset['X_sentiment_test'],
-        dataset['y_test'],
-        dates=[date_series[-1] for date_series in dataset['dates_test']],
-        save_path=os.path.join(args.output_dir, "model_comparison_demo.png")
-    )
-    
-    # Save individual model prediction plots
-    price_model.plot_predictions(
-        dataset['X_price_test'],
-        dataset['y_test'],
-        n_samples=10,
-        save_path=os.path.join(args.output_dir, "price_only_predictions.png")
-    )
-    
-    sentiment_model.plot_predictions(
-        dataset['X_price_test'],
-        dataset['X_sentiment_test'],
-        dataset['y_test'],
-        n_samples=10,
-        save_path=os.path.join(args.output_dir, "sentiment_enhanced_predictions.png")
-    )
-    
-    logger.info(f"Model training and evaluation completed. Visualizations saved to {args.output_dir}")
-    
-    return {
-        'price_model': price_model,
-        'sentiment_model': sentiment_model,
-        'dataset': dataset,
-        'price_metrics': price_metrics,
-        'sentiment_metrics': sentiment_metrics
-    }
+    try:
+        dataset = prepare_sentiment_features(
+            price_df=price_data,
+            sentiment_df=sentiment_data,
+            window_size=args.window_size,
+            forecast_horizon=args.forecast_horizon
+        )
+        
+        # Log dataset information
+        logger.info(f"Dataset prepared with {len(dataset['X_price_train'])} training samples")
+        logger.info(f"Price input shape: {dataset['X_price_train'].shape}")
+        logger.info(f"Sentiment input shape: {dataset['X_sentiment_train'].shape}")
+        logger.info(f"Target shape: {dataset['y_train'].shape}")
+        
+        # Create and train price-only model
+        logger.info("Training price-only LSTM model...")
+        price_model = LSTMWithAttention(
+            input_shape=(dataset['X_price_train'].shape[1], dataset['X_price_train'].shape[2]),
+            output_dim=dataset['y_train'].shape[1],
+            lstm_units=[128, 64],
+            dropout_rate=0.2,
+            bidirectional=True
+        )
+        
+        # Set a lower number of epochs and higher batch size for faster training
+        price_history = price_model.fit(
+            dataset['X_price_train'],
+            dataset['y_train'],
+            dataset['X_price_val'],
+            dataset['y_val'],
+            batch_size=64,
+            epochs=30,  # Reduced for faster training
+            patience=5,  # Reduced for faster training
+            model_path='models/lstm_price_only.h5',
+            verbose=1
+        )
+        
+        # Create and train sentiment-enhanced model
+        logger.info("Training sentiment-enhanced LSTM model...")
+        sentiment_model = SentimentEnhancedLSTM(
+            price_input_shape=(dataset['X_price_train'].shape[1], dataset['X_price_train'].shape[2]),
+            sentiment_input_shape=(dataset['X_sentiment_train'].shape[1], dataset['X_sentiment_train'].shape[2]),
+            output_dim=dataset['y_train'].shape[1],
+            lstm_units=[128, 64],
+            dropout_rate=0.2,
+            bidirectional=True
+        )
+        
+        sentiment_history = sentiment_model.fit(
+            dataset['X_price_train'],
+            dataset['X_sentiment_train'],
+            dataset['y_train'],
+            dataset['X_price_val'],
+            dataset['X_sentiment_val'],
+            dataset['y_val'],
+            batch_size=64,
+            epochs=30,  # Reduced for faster training
+            patience=5,  # Reduced for faster training
+            model_path='models/sentiment_enhanced_lstm.h5',
+            verbose=1
+        )
+        
+        # Evaluate models on test set
+        logger.info("Evaluating models on test data...")
+        price_metrics = price_model.evaluate(dataset['X_price_test'], dataset['y_test'])
+        
+        sentiment_metrics = sentiment_model.evaluate(
+            dataset['X_price_test'],
+            dataset['X_sentiment_test'],
+            dataset['y_test']
+        )
+        
+        # Save evaluation results
+        evaluation_results = {
+            'price_only_model': {
+                'metrics': price_metrics,
+                'history': price_history
+            },
+            'sentiment_enhanced_model': {
+                'metrics': sentiment_metrics,
+                'history': sentiment_history
+            },
+            'dataset_info': {
+                'train_size': len(dataset['X_price_train']),
+                'val_size': len(dataset['X_price_val']),
+                'test_size': len(dataset['X_price_test']),
+                'window_size': args.window_size,
+                'forecast_horizon': args.forecast_horizon
+            },
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Save evaluation results
+        date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        evaluation_path = os.path.join(args.output_dir, f"model_evaluation_{date_str}.json")
+        
+        with open(evaluation_path, 'w') as f:
+            json.dump(evaluation_results, f, indent=4, default=str)
+        
+        logger.info(f"Evaluation results saved to {evaluation_path}")
+        
+        # Generate and save comparative visualization
+        logger.info("Generating model comparison visualization...")
+        comparison_fig = sentiment_model.compare_with_price_only_model(
+            price_model,
+            dataset['X_price_test'],
+            dataset['X_sentiment_test'],
+            dataset['y_test'],
+            dates=[dates[-1] for dates in dataset['dates_test']],
+            save_path=os.path.join(args.output_dir, 'model_comparison.png')
+        )
+        
+        return evaluation_results
+        
+    except Exception as e:
+        logger.error(f"Error in model training: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
 
 
 def generate_forecast(args, models=None):

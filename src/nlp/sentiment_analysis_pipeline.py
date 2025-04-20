@@ -542,11 +542,11 @@ class OilSentimentPipeline:
         # Handle NaN values in sentiment columns
         sentiment_cols = [col for col in merged_df.columns if col.startswith('sentiment_')]
         
-        # Forward fill for dates where we have some sentiment data
-        merged_df[sentiment_cols] = merged_df[sentiment_cols].fillna(method='ffill')
+        # Fill missing sentiment values (forward fill first)
+        merged_df[sentiment_cols] = merged_df[sentiment_cols].ffill()
         
-        # Then backward fill
-        merged_df[sentiment_cols] = merged_df[sentiment_cols].fillna(method='bfill')
+        # Then backward fill any remaining NaNs
+        merged_df[sentiment_cols] = merged_df[sentiment_cols].bfill()
         
         # For any remaining NaNs, fill with neutral sentiment (for early historical periods)
         if 'sentiment_compound' in merged_df.columns:

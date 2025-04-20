@@ -54,17 +54,26 @@ class AttentionLayer(Layer):
         super(AttentionLayer, self).build(input_shape)
     
     def call(self, x):
-        # Calculate attention scores
-        e = tf.nn.tanh(tf.tensordot(x, self.W, axes=1) + self.b)
+        # Calculate attention scores - using tf.matmul for better shape compatibility
+        e = tf.nn.tanh(tf.matmul(
+            tf.reshape(x, (-1, x.shape[-1])),  # Reshape to 2D: (batch*time, features)
+            self.W  # Shape: (features, 1)
+        ) + tf.reshape(self.b, (1, -1)))  # Reshape bias for broadcasting
+        
+        # Reshape back to original batch and time dimensions
+        e = tf.reshape(e, (-1, x.shape[1]))  # Shape: (batch, time)
         
         # Calculate attention weights
         a = tf.nn.softmax(e, axis=1)
         
-        # Apply attention weights to input
-        output = x * tf.expand_dims(a, -1)
+        # Apply attention weights to input (with proper broadcasting)
+        a_expanded = tf.expand_dims(a, axis=2)  # Shape: (batch, time, 1)
+        weighted_input = x * a_expanded  # Shape: (batch, time, features)
         
         # Sum over the time dimension
-        return tf.reduce_sum(output, axis=1)
+        context_vector = tf.reduce_sum(weighted_input, axis=1)  # Shape: (batch, features)
+        
+        return context_vector
     
     def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[2]
@@ -133,11 +142,16 @@ class LSTMWithAttention:
             # Add dropout after each LSTM layer
             x = Dropout(self.dropout_rate)(x)
         
-        # Attention mechanism
-        x = AttentionLayer()(x)
+        # Use TensorFlow's built-in attention mechanism
+        # Create a query vector to attend to the sequence
+        query = Lambda(lambda x: tf.reduce_mean(x, axis=1, keepdims=True))(x)
+        
+        # Apply attention
+        attention = Attention()([query, x])
+        attention = Lambda(lambda x: tf.squeeze(x, axis=1))(attention)
         
         # Output layer
-        outputs = Dense(self.output_dim, activation='linear')(x)
+        outputs = Dense(self.output_dim, activation='linear')(attention)
         
         # Create and compile model
         model = Model(inputs=inputs, outputs=outputs)
@@ -337,9 +351,14 @@ class LSTMWithAttention:
                 output_dim=1
             )
         
-        # Load the model with custom objects for the attention layer
-        custom_objects = {'AttentionLayer': AttentionLayer}
-        loaded_model = load_model(model_path, custom_objects=custom_objects)
+        try:
+            # First try loading with custom objects for the AttentionLayer
+            custom_objects = {'AttentionLayer': AttentionLayer}
+            loaded_model = load_model(model_path, custom_objects=custom_objects)
+        except:
+            # If that fails, try loading with standard objects (for the built-in attention mechanism)
+            logger.info("Failed to load with custom AttentionLayer, trying standard loading...")
+            loaded_model = load_model(model_path)
         
         # Replace the model in the instance
         instance.model = loaded_model

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate, GlobalAveragePooling1D, Lambda, TimeDistributed
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 import os
@@ -33,10 +33,7 @@ logger = logging.getLogger(__name__)
 
 class SentimentEnhancedLSTM:
     """
-    Enhanced LSTM model that integrates price data with sentiment indicators.
-    
-    This model extends the basic LSTM with attention by adding sentiment features
-    derived from FinBERT analysis of oil market discussions.
+    LSTM model enhanced with sentiment data for time series forecasting.
     """
     
     def __init__(
@@ -60,12 +57,12 @@ class SentimentEnhancedLSTM:
             sentiment_input_shape: Shape of sentiment input features (time steps, features)
             output_dim: Dimension of the output (forecast horizon)
             lstm_units: List of units for each LSTM layer
-            sentiment_dense_units: List of units for sentiment processing dense layers
+            sentiment_dense_units: List of units for sentiment dense layers
             dropout_rate: Dropout rate for regularization
             learning_rate: Learning rate for the optimizer
             bidirectional: Whether to use bidirectional LSTM layers
-            price_weight: Weight for price features (0-1)
-            sentiment_weight: Weight for sentiment features (0-1)
+            price_weight: Weight for price features
+            sentiment_weight: Weight for sentiment features
         """
         self.price_input_shape = price_input_shape
         self.sentiment_input_shape = sentiment_input_shape
@@ -77,66 +74,8 @@ class SentimentEnhancedLSTM:
         self.bidirectional = bidirectional
         self.price_weight = price_weight
         self.sentiment_weight = sentiment_weight
-        
-        # Ensure weights sum to 1
-        total_weight = self.price_weight + self.sentiment_weight
-        if total_weight != 1.0:
-            self.price_weight /= total_weight
-            self.sentiment_weight /= total_weight
-        
-        # Build the model
         self.model = self._build_model()
         self.history = None
-    
-    def _build_price_branch(self, inputs):
-        """
-        Build the price data processing branch of the model.
-        
-        Args:
-            inputs: Input tensor for price data
-            
-        Returns:
-            Output tensor from price branch
-        """
-        x = inputs
-        
-        # LSTM layers for price data
-        for i, units in enumerate(self.lstm_units):
-            return_sequences = (i < len(self.lstm_units) - 1) or True  # Always True for attention
-            
-            if self.bidirectional:
-                x = Bidirectional(
-                    LSTM(units, return_sequences=return_sequences)
-                )(x)
-            else:
-                x = LSTM(units, return_sequences=return_sequences)(x)
-            
-            # Add dropout after each LSTM layer
-            x = Dropout(self.dropout_rate)(x)
-        
-        # Attention mechanism
-        x = AttentionLayer()(x)
-        
-        return x
-    
-    def _build_sentiment_branch(self, inputs):
-        """
-        Build the sentiment data processing branch of the model.
-        
-        Args:
-            inputs: Input tensor for sentiment data
-            
-        Returns:
-            Output tensor from sentiment branch
-        """
-        x = inputs
-        
-        # Dense layers for sentiment processing
-        for units in self.sentiment_dense_units:
-            x = Dense(units, activation='relu')(x)
-            x = Dropout(self.dropout_rate)(x)
-        
-        return x
     
     def _build_model(self) -> Model:
         """
@@ -147,17 +86,49 @@ class SentimentEnhancedLSTM:
         """
         # Price input branch
         price_inputs = Input(shape=self.price_input_shape, name='price_input')
-        price_features = self._build_price_branch(price_inputs)
+        
+        # LSTM layers for price data
+        x_price = price_inputs
+        for i, units in enumerate(self.lstm_units):
+            return_sequences = (i < len(self.lstm_units) - 1)
+            
+            if self.bidirectional:
+                x_price = Bidirectional(
+                    LSTM(units, return_sequences=return_sequences)
+                )(x_price)
+            else:
+                x_price = LSTM(units, return_sequences=return_sequences)(x_price)
+            
+            # Add dropout after each LSTM layer
+            x_price = Dropout(self.dropout_rate)(x_price)
         
         # Sentiment input branch
         sentiment_inputs = Input(shape=self.sentiment_input_shape, name='sentiment_input')
-        sentiment_features = self._build_sentiment_branch(sentiment_inputs)
         
-        # Combine branches with weighting
-        combined = Concatenate()([
-            Dense(64, activation='relu')(price_features),
-            Dense(64, activation='relu')(sentiment_features)
-        ])
+        # Process sentiment with TimeDistributed Dense layers
+        x_sentiment = sentiment_inputs
+        for units in self.sentiment_dense_units:
+            x_sentiment = TimeDistributed(Dense(units, activation='relu'))(x_sentiment)
+            x_sentiment = TimeDistributed(Dropout(self.dropout_rate))(x_sentiment)
+        
+        # Use LSTM to process sentiment sequences
+        if self.bidirectional:
+            x_sentiment = Bidirectional(LSTM(32, return_sequences=False))(x_sentiment)
+        else:
+            x_sentiment = LSTM(32, return_sequences=False)(x_sentiment)
+        
+        x_sentiment = Dropout(self.dropout_rate)(x_sentiment)
+        
+        # Apply weighting to each branch
+        price_weighted = Lambda(lambda x: x * self.price_weight)(x_price)
+        sentiment_weighted = Lambda(lambda x: x * self.sentiment_weight)(x_sentiment)
+        
+        # Concatenate the weighted features
+        combined = Concatenate()([price_weighted, sentiment_weighted])
+        
+        # Final dense layers
+        combined = Dense(64, activation='relu')(combined)
+        combined = Dropout(self.dropout_rate)(combined)
         
         # Output layer
         outputs = Dense(self.output_dim, activation='linear')(combined)
@@ -631,16 +602,24 @@ def prepare_sentiment_features(
     price_df = price_df.copy()
     sentiment_df = sentiment_df.copy()
     
-    if not pd.api.types.is_datetime64_dtype(price_df[date_col_price]):
-        price_df[date_col_price] = pd.to_datetime(price_df[date_col_price])
+    # Check if price_df already has date as index
+    if isinstance(price_df.index, pd.DatetimeIndex):
+        # Already indexed by date, no need to set index
+        pass
+    elif date_col_price in price_df.columns:
+        # Convert date column to datetime if needed
+        if not pd.api.types.is_datetime64_dtype(price_df[date_col_price]):
+            price_df[date_col_price] = pd.to_datetime(price_df[date_col_price])
+        # Set date as index
+        price_df = price_df.set_index(date_col_price)
+    else:
+        # No date column and not DatetimeIndex, raise error
+        raise ValueError(f"No date column '{date_col_price}' found in price_df and index is not DatetimeIndex")
     
     if date_col_sentiment in sentiment_df.columns and not pd.api.types.is_datetime64_dtype(sentiment_df[date_col_sentiment]):
         sentiment_df[date_col_sentiment] = pd.to_datetime(sentiment_df[date_col_sentiment])
     elif 'created_utc' in sentiment_df.columns:
         sentiment_df[date_col_sentiment] = pd.to_datetime(sentiment_df['created_utc'], unit='s')
-    
-    # Set date as index
-    price_df = price_df.set_index(date_col_price)
     
     # Aggregate sentiment by date
     sentiment_agg = sentiment_analyzer.aggregate_sentiment_by_time(
@@ -658,7 +637,7 @@ def prepare_sentiment_features(
     
     # Fill missing sentiment values (days with no posts/comments)
     # Use forward fill first, then backward fill for any remaining NaNs
-    combined[sentiment_cols] = combined[sentiment_cols].fillna(method='ffill').fillna(method='bfill')
+    combined[sentiment_cols] = combined[sentiment_cols].ffill().bfill()
     
     # If there are still NaNs, fill with zeros (neutral sentiment)
     combined = combined.fillna(0)

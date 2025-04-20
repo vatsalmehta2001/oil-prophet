@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: oil-prophet-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./notebooks:/app/notebooks
+    environment:
+      - OIL_PROPHET_API_KEY=${OIL_PROPHET_API_KEY:-your_api_key_here}
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
